@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerAuthRoutes } from "./auth";
+import { registerOAuthRoutes } from "./oauth";
 import { sdk } from "./sdk";
 import { getPool } from "../db";
 import { appRouter } from "../routers";
@@ -51,6 +52,8 @@ async function startServer() {
     }
   });
   // tRPC API
+  registerOAuthRoutes(app);
+
   app.use(
     "/api/trpc",
     createExpressMiddleware({

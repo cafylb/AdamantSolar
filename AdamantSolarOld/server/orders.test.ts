@@ -9,7 +9,7 @@ function createAuthContext(userId: number = 1): TrpcContext {
   const user: AuthenticatedUser = {
     id: userId,
     openId: `test-user-${userId}`,
-    email: `test${userId}@example.com`,
+    email: `AdamantSolar@gmail.com`,
     name: `Test User ${userId}`,
     loginMethod: "manus",
     role: "user",
@@ -175,7 +175,6 @@ describe(
   { timeout: 10000 }
 );
 
-
 describe(
   "Tashkent-only validation",
   () => {
@@ -236,7 +235,7 @@ describe(
       // Validation should pass for Tashkent addresses
       const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
       const address = "123 Main Street, Tashkent, Uzbekistan";
-      const isTashkentAddress = tashkentKeywords.some((keyword) =>
+      const isTashkentAddress = tashkentKeywords.some(keyword =>
         address.toLowerCase().includes(keyword)
       );
       expect(isTashkentAddress).toBe(true);
@@ -246,7 +245,7 @@ describe(
       // Validation should pass for Cyrillic Tashkent addresses
       const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
       const address = "123 Улица, Ташкент";
-      const isTashkentAddress = tashkentKeywords.some((keyword) =>
+      const isTashkentAddress = tashkentKeywords.some(keyword =>
         address.toLowerCase().includes(keyword)
       );
       expect(isTashkentAddress).toBe(true);

@@ -12,7 +12,12 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "db:clear": "cross-env NODE_ENV=development tsx server/clearDatabase.ts clear",
+    "db:clear:orders": "cross-env NODE_ENV=development tsx server/clearDatabase.ts clear:orders",
+    "db:clear:users": "cross-env NODE_ENV=development tsx server/clearDatabase.ts clear:users",
+    "db:create": "cross-env NODE_ENV=development tsx server/clearDatabase.ts create",
+    "db:reset": "cross-env NODE_ENV=development tsx server/clearDatabase.ts reset"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

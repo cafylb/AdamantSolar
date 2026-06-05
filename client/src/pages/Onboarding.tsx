@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { getLoginUrl } from "@/const";
 
 const MONTHS = [
   "January",
@@ -52,7 +53,7 @@ export default function Onboarding() {
   const createOrderMutation = trpc.orders.create.useMutation();
 
   if (!user) {
-    navigate("/login");
+    navigate(getLoginUrl());
     return null;
   }
 

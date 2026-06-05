@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLanguage } from "@/_core/LanguageContext";
 import type { Lang } from "@/_core/LanguageContext";
+import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,7 +84,11 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-50 text-red-700 border border-red-200",
 };
 
-export default function Dashboard() {
+type DashboardProps = {
+  bypassAuth?: boolean;
+};
+
+export default function Dashboard({ bypassAuth = false }: DashboardProps) {
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLanguage();
   const [, navigate] = useLocation();
@@ -252,14 +257,14 @@ export default function Dashboard() {
     };
   }, []);
 
-  if (!user) {
-    navigate("/login");
+  if (!user && !bypassAuth) {
+    navigate(getLoginUrl());
     return null;
   }
 
   const handleLogout = async () => {
     await logout();
-    navigate("/login");
+    navigate(getLoginUrl());
   };
 
   const handleFormChange = (field: string, value: any) => {
@@ -409,7 +414,7 @@ export default function Dashboard() {
           {/* User Menu */}
           <div className="flex items-center gap-3 justify-end min-w-0">
             <span className="text-sm text-subtle truncate max-w-[120px] sm:max-w-[200px] hidden sm:inline">
-              {user.email}
+              {user?.email}
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger>

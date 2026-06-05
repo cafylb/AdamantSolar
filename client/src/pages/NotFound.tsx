@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home } from "lucide-react";
+import { AlertCircle, BookType, Home } from "lucide-react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 
@@ -14,20 +14,20 @@ export default function NotFound() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
       className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100"
     >
       <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
         <CardContent className="pt-8 pb-8 text-center">
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb  -6">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
               className="relative"
             >
-              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
+              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />+
               <AlertCircle className="relative h-16 w-16 text-red-500" />
             </motion.div>
           </div>

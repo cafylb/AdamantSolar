@@ -56,7 +56,7 @@ export default function Onboarding() {
   }
 
   const handleFormChange = (field: string, value: any) => {
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
@@ -89,7 +89,7 @@ export default function Onboarding() {
     // Validate Tashkent address
     const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
     const addressLower = formData.deliveryAddress.toLowerCase();
-    const isTashkentAddress = tashkentKeywords.some((keyword) =>
+    const isTashkentAddress = tashkentKeywords.some(keyword =>
       addressLower.includes(keyword)
     );
 
@@ -164,12 +164,12 @@ export default function Onboarding() {
                 <Label className="label-minimal mb-2 block">Day</Label>
                 <select
                   value={formData.day}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleFormChange("day", parseInt(e.target.value))
                   }
                   className="input-minimal w-full"
                 >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                     <option key={d} value={d}>
                       {d}
                     </option>
@@ -181,10 +181,10 @@ export default function Onboarding() {
                 <Label className="label-minimal mb-2 block">Month</Label>
                 <select
                   value={formData.month}
-                  onChange={(e) => handleFormChange("month", e.target.value)}
+                  onChange={e => handleFormChange("month", e.target.value)}
                   className="input-minimal w-full"
                 >
-                  {MONTHS.map((m) => (
+                  {MONTHS.map(m => (
                     <option key={m} value={m}>
                       {m}
                     </option>
@@ -197,7 +197,7 @@ export default function Onboarding() {
                 <Input
                   type="number"
                   value={formData.year}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleFormChange("year", parseInt(e.target.value))
                   }
                   className="input-minimal"
@@ -211,7 +211,7 @@ export default function Onboarding() {
                 <div className="flex items-center h-10">
                   <Checkbox
                     checked={formData.hideTime}
-                    onCheckedChange={(checked) =>
+                    onCheckedChange={checked =>
                       handleFormChange("hideTime", checked)
                     }
                   />
@@ -225,12 +225,12 @@ export default function Onboarding() {
                 <Label className="label-minimal mb-2 block">Hour</Label>
                 <select
                   value={formData.hour}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleFormChange("hour", parseInt(e.target.value))
                   }
                   className="input-minimal w-full"
                 >
-                  {HOURS.map((h) => (
+                  {HOURS.map(h => (
                     <option key={h} value={h}>
                       {String(h).padStart(2, "0")}
                     </option>
@@ -242,12 +242,12 @@ export default function Onboarding() {
                 <Label className="label-minimal mb-2 block">Minute</Label>
                 <select
                   value={formData.minute}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleFormChange("minute", parseInt(e.target.value))
                   }
                   className="input-minimal w-full"
                 >
-                  {MINUTES.map((m) => (
+                  {MINUTES.map(m => (
                     <option key={m} value={m}>
                       {String(m).padStart(2, "0")}
                     </option>
@@ -262,7 +262,7 @@ export default function Onboarding() {
               <Input
                 placeholder="e.g., Written in the stars"
                 value={formData.mainTitle}
-                onChange={(e) => handleFormChange("mainTitle", e.target.value)}
+                onChange={e => handleFormChange("mainTitle", e.target.value)}
                 className="input-minimal"
               />
             </div>
@@ -273,7 +273,7 @@ export default function Onboarding() {
               <Input
                 placeholder="e.g., The starry sky over"
                 value={formData.line1}
-                onChange={(e) => handleFormChange("line1", e.target.value)}
+                onChange={e => handleFormChange("line1", e.target.value)}
                 className="input-minimal"
               />
             </div>
@@ -284,7 +284,7 @@ export default function Onboarding() {
               <Input
                 placeholder="e.g., Your location name"
                 value={formData.line2}
-                onChange={(e) => handleFormChange("line2", e.target.value)}
+                onChange={e => handleFormChange("line2", e.target.value)}
                 className="input-minimal"
               />
             </div>
@@ -297,7 +297,7 @@ export default function Onboarding() {
               <textarea
                 placeholder="Add an optional message..."
                 value={formData.message}
-                onChange={(e) => handleFormChange("message", e.target.value)}
+                onChange={e => handleFormChange("message", e.target.value)}
                 className="input-minimal w-full resize-none"
                 rows={3}
               />
@@ -322,7 +322,7 @@ export default function Onboarding() {
               <textarea
                 placeholder="Enter your delivery address in Tashkent..."
                 value={formData.deliveryAddress}
-                onChange={(e) =>
+                onChange={e =>
                   handleFormChange("deliveryAddress", e.target.value)
                 }
                 className="input-minimal w-full resize-none"

@@ -37,7 +37,7 @@ export default function Login() {
           <a href={getLoginUrl()} className="block">
             <Button
               className="w-full h-12 bg-foreground text-white hover:bg-foreground/90 font-medium text-base rounded-lg shadow-subtle transition-all"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 window.location.href = getLoginUrl();
               }}
@@ -60,7 +60,7 @@ export default function Login() {
           <a href={getLoginUrl()} className="block">
             <Button
               className="w-full h-12 bg-black text-white hover:bg-black/90 font-medium text-base rounded-lg shadow-subtle transition-all"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 window.location.href = getLoginUrl();
               }}

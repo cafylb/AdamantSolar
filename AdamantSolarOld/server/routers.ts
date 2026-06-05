@@ -3,11 +3,16 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { createOrder, getOrdersByUserId, upsertUserProfile, getUserProfile } from "./db";
+import {
+  createOrder,
+  getOrdersByUserId,
+  upsertUserProfile,
+  getUserProfile,
+} from "./db";
 import { notifyOwner } from "./_core/notification";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -24,7 +29,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          location: z.string().refine((val) => val === "Tashkent", {
+          location: z.string().refine(val => val === "Tashkent", {
             message: "Orders are only available in Tashkent",
           }),
           day: z.number().min(1).max(31),
@@ -42,14 +47,9 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         // Validate delivery address contains Tashkent reference
-        const tashkentKeywords = [
-          "tashkent",
-          "ташкент",
-          "узб",
-          "uzbek",
-        ];
+        const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
         const addressLower = input.deliveryAddress.toLowerCase();
-        const isTashkentAddress = tashkentKeywords.some((keyword) =>
+        const isTashkentAddress = tashkentKeywords.some(keyword =>
           addressLower.includes(keyword)
         );
 
@@ -96,7 +96,7 @@ export const appRouter = router({
     upsert: protectedProcedure
       .input(
         z.object({
-          location: z.string().refine((val) => val === "Tashkent", {
+          location: z.string().refine(val => val === "Tashkent", {
             message: "Location must be Tashkent",
           }),
           deliveryAddress: z.string().min(1, "Delivery address is required"),
@@ -104,14 +104,9 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         // Validate delivery address contains Tashkent reference
-        const tashkentKeywords = [
-          "tashkent",
-          "ташкент",
-          "узб",
-          "uzbek",
-        ];
+        const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
         const addressLower = input.deliveryAddress.toLowerCase();
-        const isTashkentAddress = tashkentKeywords.some((keyword) =>
+        const isTashkentAddress = tashkentKeywords.some(keyword =>
           addressLower.includes(keyword)
         );
 

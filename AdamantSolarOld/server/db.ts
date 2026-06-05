@@ -1,7 +1,16 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, Order, InsertOrder, UserProfile, InsertUserProfile, orders, userProfiles } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import {
+  InsertUser,
+  users,
+  Order,
+  InsertOrder,
+  UserProfile,
+  InsertUserProfile,
+  orders,
+  userProfiles,
+} from "../drizzle/schema";
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -56,8 +65,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin";
+      updateSet.role = "admin";
     }
 
     if (!values.lastSignedIn) {
@@ -84,7 +93,11 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
@@ -96,7 +109,11 @@ export async function createOrder(data: InsertOrder): Promise<Order | null> {
   try {
     const result = await db.insert(orders).values(data);
     const orderId = result[0].insertId;
-    const order = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    const order = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
     return order.length > 0 ? order[0] : null;
   } catch (error) {
     console.error("[Database] Failed to create order:", error);
@@ -116,12 +133,18 @@ export async function getOrdersByUserId(userId: number): Promise<Order[]> {
   }
 }
 
-export async function getUserProfile(userId: number): Promise<UserProfile | null> {
+export async function getUserProfile(
+  userId: number
+): Promise<UserProfile | null> {
   const db = await getDb();
   if (!db) return null;
 
   try {
-    const result = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1);
+    const result = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1);
     return result.length > 0 ? result[0] : null;
   } catch (error) {
     console.error("[Database] Failed to get user profile:", error);
@@ -129,22 +152,25 @@ export async function getUserProfile(userId: number): Promise<UserProfile | null
   }
 }
 
-export async function upsertUserProfile(data: InsertUserProfile): Promise<UserProfile | null> {
+export async function upsertUserProfile(
+  data: InsertUserProfile
+): Promise<UserProfile | null> {
   const db = await getDb();
   if (!db) return null;
 
   try {
-    await db.insert(userProfiles).values(data).onDuplicateKeyUpdate({
-      set: {
-        location: data.location,
-        deliveryAddress: data.deliveryAddress,
-      },
-    });
+    await db
+      .insert(userProfiles)
+      .values(data)
+      .onDuplicateKeyUpdate({
+        set: {
+          location: data.location,
+          deliveryAddress: data.deliveryAddress,
+        },
+      });
     return await getUserProfile(data.userId);
   } catch (error) {
     console.error("[Database] Failed to upsert user profile:", error);
     throw error;
   }
 }
-
-

@@ -1,4 +1,11 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -30,7 +37,9 @@ export type InsertUser = typeof users.$inferInsert;
  */
 export const userProfiles = mysqlTable("userProfiles", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id),
+  userId: int("userId")
+    .notNull()
+    .references(() => users.id),
   location: varchar("location", { length: 255 }).notNull(), // Tashkent
   deliveryAddress: varchar("deliveryAddress", { length: 500 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -45,7 +54,9 @@ export type InsertUserProfile = typeof userProfiles.$inferInsert;
  */
 export const orders = mysqlTable("orders", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id),
+  userId: int("userId")
+    .notNull()
+    .references(() => users.id),
   location: varchar("location", { length: 255 }).notNull(),
   day: int("day").notNull(),
   month: varchar("month", { length: 20 }).notNull(),
@@ -58,7 +69,14 @@ export const orders = mysqlTable("orders", {
   message: text("message"), // Optional
   hideTime: int("hideTime").default(0).notNull(), // 0 = false, 1 = true
   deliveryAddress: varchar("deliveryAddress", { length: 500 }).notNull(),
-  status: mysqlEnum("status", ["pending", "processing", "completed", "cancelled"]).default("pending").notNull(),
+  status: mysqlEnum("status", [
+    "pending",
+    "processing",
+    "completed",
+    "cancelled",
+  ])
+    .default("pending")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

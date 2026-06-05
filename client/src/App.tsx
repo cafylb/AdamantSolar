@@ -23,7 +23,12 @@ function Router() {
     );
   }
 
-  // Redirect to login if not authenticated
+  // Special test route: bypass auth and show dashboard directly
+  if (location === "/testversion") {
+    return <Dashboard bypassAuth />;
+  }
+
+  // Redirect to login if not authenticated (default behaviour)
   if (!isAuthenticated) {
     return (
       <Switch>
@@ -43,13 +48,15 @@ function Router() {
         transition={{ duration: 0.25, ease: "easeOut" }}
       >
         <Switch>
-          <Route path={"/dashboard"} component={Dashboard} />
-          <Route path={"*"} component={Dashboard} />
+          <Route path={"/dashboard"}>{() => <Dashboard />}</Route>
+          <Route path={"*"}>{() => <Dashboard />}</Route>
         </Switch>
       </motion.div>
     </AnimatePresence>
   );
 }
+
+// keep router simple — special case handled above
 
 function App() {
   return (

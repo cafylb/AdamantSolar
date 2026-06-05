@@ -31,6 +31,18 @@ function mapUserRow(r: any) {
   };
 }
 
+function mapUserProfileRow(r: any) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    userId: r.userid ?? r.userId,
+    location: r.location,
+    deliveryAddress: r.deliveryaddress ?? r.deliveryAddress,
+    createdAt: r.createdat ?? r.createdAt ?? null,
+    updatedAt: r.updatedat ?? r.updatedAt ?? null,
+  };
+}
+
 function mapOrderRow(r: any) {
   if (!r) return null;
   return {
@@ -119,18 +131,25 @@ export async function getPool(): Promise<Pool | null> {
 export async function upsertUser(user: { openId: string; name?: string; email?: string; loginMethod?: string; role?: string; lastSignedIn?: Date; }) {
   if (!user.openId) throw new Error("openId required");
   const p = ensurePool();
-  if (!p) return;
+  if (!p) return null;
   await ensureSchema();
   try {
-    await p.query(
+    const res = await p.query(
       `INSERT INTO users (openId, name, email, loginMethod, role, lastSignedIn)
        VALUES ($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (openId) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, loginMethod = EXCLUDED.loginMethod, lastSignedIn = EXCLUDED.lastSignedIn`,
+       ON CONFLICT (openId) DO UPDATE SET
+         name = EXCLUDED.name,
+         email = EXCLUDED.email,
+         loginMethod = EXCLUDED.loginMethod,
+         lastSignedIn = EXCLUDED.lastSignedIn
+       RETURNING *`,
       [user.openId, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? 'user', user.lastSignedIn ?? new Date()]
     );
+    return res.rows[0] ? mapUserRow(res.rows[0]) : null;
   } catch (e) {
     console.warn("[Database] upsertUser failed:", e);
     pool = null;
+    return null;
   }
 }
 
@@ -198,7 +217,7 @@ export async function getUserProfile(userId: number) {
   await ensureSchema();
   try {
     const res = await p.query(`SELECT * FROM userProfiles WHERE userId = $1 LIMIT 1`, [userId]);
-    return res.rows[0] ? mapUserRow(res.rows[0]) : null;
+    return res.rows[0] ? mapUserProfileRow(res.rows[0]) : null;
   } catch (e) {
     console.error("[Database] getUserProfile failed:", e);
     return null;

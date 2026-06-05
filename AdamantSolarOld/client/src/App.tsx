@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
+import { StarMapGenerator } from "./components/StarMapGenerator";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Spinner } from "./components/ui/spinner";
 
@@ -34,6 +35,7 @@ function Router() {
   // Authenticated routes
   return (
     <Switch>
+      <Route path={"/starmap"} component={StarMapGenerator} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"*"} component={Dashboard} />
     </Switch>
