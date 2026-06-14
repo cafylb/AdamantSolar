@@ -1,4 +1,56 @@
-// Preconfigured storage helpers for Manus WebDev templates
+// Local filesystem storage helpers (replaces Manus storage)
+import { join } from "path";
+import { promises as fs } from "fs";
+import { randomUUID } from "crypto";
+
+// Directory where uploaded files are stored (relative to project root)
+const UPLOADS_DIR = join(process.cwd(), "server", "uploads");
+
+/** Ensure the uploads directory exists */
+async function ensureUploadsDir() {
+  try {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  } catch (e) {
+    // ignore if it already exists
+  }
+}
+
+/** Normalize a relative key to a filesystem-safe filename */
+function sanitizeKey(relKey: string): string {
+  const clean = relKey.replace(/^\/+/, "");
+  const hash = randomUUID().replace(/-/g, "").slice(0, 8);
+  const extIdx = clean.lastIndexOf(".");
+  if (extIdx === -1) return `${clean}_${hash}`;
+  return `${clean.slice(0, extIdx)}_${hash}${clean.slice(extIdx)}`;
+}
+
+/** Put a file into the local storage */
+export async function storagePut(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  contentType = "application/octet-stream",
+): Promise<{ key: string; url: string }> {
+  await ensureUploadsDir();
+  const key = sanitizeKey(relKey);
+  const filePath = join(UPLOADS_DIR, key);
+  const buffer = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as any);
+  await fs.writeFile(filePath, buffer);
+  // Return a URL that can be served statically (e.g., via Express static middleware)
+  return { key, url: `/uploads/${key}` };
+}
+
+/** Retrieve a stored file's local URL */
+export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+  const key = sanitizeKey(relKey);
+  return { key, url: `/uploads/${key}` };
+}
+
+/** Return a signed URL – not needed for local storage, just return the same URL */
+export async function storageGetSignedUrl(relKey: string): Promise<string> {
+  const { url } = await storageGet(relKey);
+  return url;
+}
+
 // Uploads via Forge Server presigned URL to S3 (PUT direct).
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 

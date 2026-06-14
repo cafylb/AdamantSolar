@@ -27,6 +27,14 @@ import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { motion, AnimatePresence } from "framer-motion";
 
+declare module "react" {
+  namespace JSX {
+    interface IntrinsicElements {
+      "site-without-navbar": any;
+    }
+  }
+}
+
 const MONTHS = [
   "January",
   "February",
@@ -91,8 +99,36 @@ type DashboardProps = {
 export default function Dashboard({ bypassAuth = false }: DashboardProps) {
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLanguage();
-  const [, navigate] = useLocation();
-  const [tab, setTab] = useState<"buy" | "orders">("buy");
+  const [location, navigate] = useLocation();
+  const tab = location === "/orders" ? "orders" : "buy";
+
+  const navigateWithTransition = (to: string) => {
+    if (location === to) {
+      return;
+    }
+
+    const doc = document.documentElement;
+    if (location === "/buy" && to === "/orders") {
+      doc.classList.add("transition-forward");
+      doc.classList.remove("transition-backward");
+    } else if (location === "/orders" && to === "/buy") {
+      doc.classList.add("transition-backward");
+      doc.classList.remove("transition-forward");
+    }
+
+    if ((document as any).startViewTransition) {
+      const transition = (document as any).startViewTransition(() => {
+        navigate(to);
+      });
+      transition.finished.then(() => {
+        doc.classList.remove("transition-forward", "transition-backward");
+      });
+    } else {
+      navigate(to);
+    }
+  };
+
+  
 
   // Form state for "Купить" tab
   const [formStep, setFormStep] = useState<"form" | "address">("form");
@@ -257,6 +293,8 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
     };
   }, []);
 
+
+
   if (!user && !bypassAuth) {
     navigate(getLoginUrl());
     return null;
@@ -367,7 +405,10 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
   return (
     <div className="min-h-screen bg-white">
       {/* Top Navigation */}
-      <nav className="border-b border-border shadow-subtle sticky top-0 bg-white z-50">
+      <nav 
+        style={{ viewTransitionName: "main-navbar" } as any}
+        className="border-b border-border shadow-subtle bg-white z-50"
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-6">
           {/* Logo */}
           <div className="flex items-center gap-1 min-w-0">
@@ -384,7 +425,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
           <div className="flex items-center gap-8">
             <motion.button
               onClick={() => {
-                setTab("buy");
+                navigateWithTransition("/buy");
                 setFormStep("form");
               }}
               whileHover={{ y: -1 }}
@@ -398,7 +439,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
               {t("tab_buy")}
             </motion.button>
             <motion.button
-              onClick={() => setTab("orders")}
+              onClick={() => navigateWithTransition("/orders")}
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
               className={`text-sm font-medium transition-colors pb-2 border-b-2 ${
@@ -416,7 +457,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
             <span className="text-sm text-subtle truncate max-w-[120px] sm:max-w-[200px] hidden sm:inline">
               {user?.email}
             </span>
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger>
                 <button
                   className="px-3 py-2 rounded-lg border text-sm"
@@ -443,16 +484,9 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 overflow-hidden">
-        <AnimatePresence mode="wait">
-          {tab === "buy" ? (
-            <motion.div
-              key="buy-tab"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.25 }}
-            >
+      <site-without-navbar className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 overflow-hidden block min-h-[calc(100vh-80px)]">
+        {tab === "buy" ? (
+          <div key="buy-tab">
               {/* "Купить" Tab - Order Form */}
               <div className="space-y-8">
                 <div>
@@ -517,6 +551,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           <div>
                             <Label className="label-minimal mb-2 block">{t("day")}</Label>
                             <Select
+                              modal={false}
                               value={String(formData.day)}
                               onValueChange={(value) => handleFormChange("day", parseInt(value))}
                             >
@@ -536,6 +571,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           <div>
                             <Label className="label-minimal mb-2 block">{t("month")}</Label>
                             <Select
+                              modal={false}
                               value={formData.month}
                               onValueChange={(value) => handleFormChange("month", value)}
                             >
@@ -570,6 +606,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           <div>
                             <Label className="label-minimal mb-2 block">{t("hour")}</Label>
                             <Select
+                              modal={false}
                               value={String(formData.hour)}
                               onValueChange={(value) => handleFormChange("hour", parseInt(value))}
                             >
@@ -589,6 +626,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           <div>
                             <Label className="label-minimal mb-2 block">{t("minute")}</Label>
                             <Select
+                              modal={false}
                               value={String(formData.minute)}
                               onValueChange={(value) => handleFormChange("minute", parseInt(value))}
                             >
@@ -778,40 +816,34 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                   </AnimatePresence>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ) : (
-        <motion.div
-          key="orders-tab"
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -15 }}
-          transition={{ duration: 0.25 }}
-        >
-          {/* "Заказы" Tab - Orders List */}
-          <div>
-            <div className="flex items-center justify-between mb-8">
+            <div key="orders-tab">
+              {/* "Заказы" Tab - Orders List */}
               <div>
-                <h2 className="text-3xl font-semibold text-foreground mb-1">
-                  {t("your_orders")}
-                </h2>
-                <p className="text-subtle">
-                  {t("track_manage_orders")}
-                </p>
-              </div>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  onClick={() => {
-                    setTab("buy");
-                    setFormStep("form");
-                  }}
-                  className="h-11 px-6 bg-foreground text-white hover:bg-foreground/90 font-medium rounded-lg shadow-subtle transition-all"
-                >
-                  {t("new_order")}
-                </Button>
-              </motion.div>
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-3xl font-semibold text-foreground mb-1">
+                      {t("your_orders")}
+                    </h2>
+                    <p className="text-subtle">
+                      {t("track_manage_orders")}
+                    </p>
+                  </div>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button
+                      onClick={() => {
+                        navigateWithTransition("/buy");
+                        setFormStep("form");
+                      }}
+                      className="h-11 px-6 bg-foreground text-white hover:bg-foreground/90 font-medium rounded-lg shadow-subtle transition-all"
+                    >
+                      {t("new_order")}
+                    </Button>
+                  </motion.div>
             </div>
 
             {/* Orders List */}
@@ -930,7 +962,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     onClick={() => {
-                      setTab("buy");
+                      navigateWithTransition("/buy");
                       setFormStep("form");
                     }}
                     className="h-11 px-6 bg-foreground text-white hover:bg-foreground/90 font-medium rounded-lg shadow-subtle transition-all"
@@ -941,10 +973,9 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
               </div>
             )}
           </div>
-        </motion.div>
-      )}
-      </AnimatePresence>
-      </div>
+          </div>
+        )}
+      </site-without-navbar>
     </div>
   );
 }

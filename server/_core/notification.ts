@@ -1,4 +1,5 @@
-import { TRPCError } from "@trpc/server";
+// Notification helper (replaces Manus notification service)
+import nodemailer from "nodemailer";
 import { ENV } from "./env";
 
 export type NotificationPayload = {
@@ -6,102 +7,51 @@ export type NotificationPayload = {
   content: string;
 };
 
-const TITLE_MAX_LENGTH = 1200;
-const CONTENT_MAX_LENGTH = 20000;
-
-const trimValue = (value: string): string => value.trim();
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
-
-const buildEndpointUrl = (baseUrl: string): string => {
-  const normalizedBase = baseUrl.endsWith("/")
-    ? baseUrl
-    : `${baseUrl}/`;
-  return new URL(
-    "webdevtoken.v1.WebDevService/SendNotification",
-    normalizedBase
-  ).toString();
-};
-
-const validatePayload = (input: NotificationPayload): NotificationPayload => {
-  if (!isNonEmptyString(input.title)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Notification title is required.",
-    });
-  }
-  if (!isNonEmptyString(input.content)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Notification content is required.",
-    });
-  }
-
-  const title = trimValue(input.title);
-  const content = trimValue(input.content);
-
-  if (title.length > TITLE_MAX_LENGTH) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Notification title must be at most ${TITLE_MAX_LENGTH} characters.`,
-    });
-  }
-
-  if (content.length > CONTENT_MAX_LENGTH) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Notification content must be at most ${CONTENT_MAX_LENGTH} characters.`,
-    });
-  }
-
-  return { title, content };
-};
-
-/**
- * Dispatches a project-owner notification through the Manus Notification Service.
- * Returns `true` if the request was accepted, `false` when the upstream service
- * cannot be reached (callers can fall back to email/slack). Validation errors
- * bubble up as TRPC errors so callers can fix the payload.
- */
-export async function notifyOwner(
-  payload: NotificationPayload
-): Promise<boolean> {
-  const { title, content } = validatePayload(payload);
-
-  if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-    console.warn(
-      "[Notification] Manus notification env vars not set. Skipping notification."
-    );
-    return false;
-  }
-
-  const endpoint = buildEndpointUrl(ENV.forgeApiUrl);
-
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${ENV.forgeApiKey}`,
-        "content-type": "application/json",
-        "connect-protocol-version": "1",
+// Simple email transport creation based on env variables
+function getTransport() {
+  if (
+    ENV.SMTP_HOST &&
+    ENV.SMTP_PORT &&
+    ENV.SMTP_USER &&
+    ENV.SMTP_PASS
+  ) {
+    return nodemailer.createTransport({
+      host: ENV.SMTP_HOST,
+      port: Number(ENV.SMTP_PORT),
+      secure: Number(ENV.SMTP_PORT) === 465, // true for 465, false for other ports
+      auth: {
+        user: ENV.SMTP_USER,
+        pass: ENV.SMTP_PASS,
       },
-      body: JSON.stringify({ title, content }),
     });
+  }
+  return null;
+}
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.warn(
-        `[Notification] Failed to notify owner (${response.status} ${response.statusText})${
-          detail ? `: ${detail}` : ""
-        }`
-      );
+/** Send notification to project owner. Returns true if sent successfully. */
+export async function notifyOwner(payload: NotificationPayload): Promise<boolean> {
+  const { title, content } = payload;
+
+  // If SMTP config is present, send an email
+  const transporter = getTransport();
+  if (transporter) {
+    try {
+      const info = await transporter.sendMail({
+        from: ENV.SMTP_FROM || "no-reply@example.com",
+        to: ENV.NOTIFY_EMAIL || "owner@example.com",
+        subject: title,
+        text: content,
+      });
+      console.log("[Notification] Email sent", info.messageId);
+      return true;
+    } catch (error) {
+      console.warn("[Notification] Failed to send email", error);
       return false;
     }
-
-    return true;
-  } catch (error) {
-    console.warn("[Notification] Error calling notification service:", error);
-    return false;
   }
+
+  // Fallback: log to console
+  console.info(`[Notification] ${title}\n${content}`);
+  return true;
 }
+

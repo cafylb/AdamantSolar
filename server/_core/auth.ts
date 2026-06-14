@@ -37,7 +37,7 @@ export function registerAuthRoutes(app: Express) {
         createdAt: new Date(),
         updatedAt: new Date(),
         lastSignedIn: new Date(),
-      };''
+      };
 
       const sessionToken = await createSessionToken(fallbackUser.id.toString());
       const cookieOptions = getSessionCookieOptions(req);

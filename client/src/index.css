@@ -114,6 +114,13 @@
 }
 
 @layer base {
+  html, body {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+  html::-webkit-scrollbar, body::-webkit-scrollbar {
+    display: none !important;
+  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -226,8 +233,74 @@
   .label-minimal {
     @apply text-sm font-medium text-foreground;
   }
-
+  
   .focus-ring {
     @apply outline-none ring-2 ring-offset-2 ring-primary;
   }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+}
+
+html.transition-forward::view-transition-group(page-content),
+html.transition-backward::view-transition-group(page-content) {
+    animation-duration: 0.7s;
+    animation-timing-function: ease;
+}
+
+@media (max-width: 768px) {
+  html.transition-forward::view-transition-group(page-content),
+  html.transition-backward::view-transition-group(page-content) {
+      animation-duration: 0.45s;
+  }
+}
+
+html.transition-forward::view-transition-old(page-content) {
+    animation-name: slide-out;
+}
+
+html.transition-forward::view-transition-new(page-content) {
+    animation-name: slide-in;
+}
+
+html.transition-backward::view-transition-old(page-content) {
+    animation-name: slide-out-reverse;
+}
+
+html.transition-backward::view-transition-new(page-content) {
+    animation-name: slide-in-reverse;
+}
+
+html.transition-forward site-without-navbar,
+html.transition-backward site-without-navbar {
+    view-transition-name: page-content;
+}
+
+@keyframes slide-out {
+    to {
+        translate: -100vw;
+    }
+}
+
+@keyframes slide-in {
+    from {
+        translate: 100vw;
+    }
+}
+
+@keyframes slide-out-reverse {
+    to {
+        translate: 100vw;
+    }
+}
+
+@keyframes slide-in-reverse {
+    from {
+        translate: -100vw;
+    }
 }

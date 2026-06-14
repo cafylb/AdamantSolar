@@ -47,6 +47,7 @@ describe(
         line2: "Tashkent",
         hideTime: false,
         deliveryAddress: "123 Main Street, Tashkent",
+        contactNumber: "+998901234567",
       };
 
       try {
@@ -80,6 +81,7 @@ describe(
           line2: "Line 2",
           hideTime: false,
           deliveryAddress: "Address",
+          contactNumber: "+998901234567",
         });
         expect.fail("Should have thrown unauthorized error");
       } catch (error: any) {
@@ -106,6 +108,7 @@ describe(
           line2: "Line 2",
           hideTime: false,
           deliveryAddress: "Address",
+          contactNumber: "+998901234567",
         });
         expect.fail("Should have thrown validation error");
       } catch (error: any) {
@@ -196,6 +199,7 @@ describe(
           line2: "Line 2",
           hideTime: false,
           deliveryAddress: "123 Main Street, Tashkent",
+          contactNumber: "+998901234567",
         });
         expect.fail("Should have thrown validation error");
       } catch (error: any) {
@@ -221,6 +225,7 @@ describe(
           line2: "Line 2",
           hideTime: false,
           deliveryAddress: "123 Main Street, Moscow", // Invalid: not Tashkent
+          contactNumber: "+998901234567",
         });
         expect.fail("Should have thrown validation error");
       } catch (error: any) {

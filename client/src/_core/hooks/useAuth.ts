@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, REQUIRE_LOGIN, TEST_USER_EMAIL } from "@/const";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -17,6 +17,20 @@ export function useAuth(options?: UseAuthOptions) {
     retry: false,
     refetchOnWindowFocus: false,
   });
+
+  // If auth is not required (dev toggle), return a fake user and no-op actions.
+  if (!REQUIRE_LOGIN) {
+    const fakeUser = { email: TEST_USER_EMAIL } as any;
+    return {
+      user: fakeUser,
+      loading: false,
+      error: null,
+      isAuthenticated: true,
+      refresh: async () => {},
+      logout: async () => {},
+      login: () => {},
+    };
+  }
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {

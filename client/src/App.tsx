@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch, useLocation, Redirect } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -32,27 +32,26 @@ function Router() {
   if (!isAuthenticated) {
     return (
       <Switch>
-        <Route path={"*"} component={Login} />
+        <Route path="/login" component={Login} />
+        <Route path="*">
+          <Redirect to="/login" />
+        </Route>
       </Switch>
     );
   }
 
   // Authenticated routes
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-      >
-        <Switch>
-          <Route path={"/dashboard"}>{() => <Dashboard />}</Route>
-          <Route path={"*"}>{() => <Dashboard />}</Route>
-        </Switch>
-      </motion.div>
-    </AnimatePresence>
+    <Switch>
+      <Route path="/buy">{() => <Dashboard />}</Route>
+      <Route path="/orders">{() => <Dashboard />}</Route>
+      <Route path="/login">
+        <Redirect to="/buy" />
+      </Route>
+      <Route path="*">
+        <Redirect to="/buy" />
+      </Route>
+    </Switch>
   );
 }
 
