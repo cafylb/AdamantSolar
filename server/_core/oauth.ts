@@ -8,6 +8,7 @@ import { ENV } from "./env";
 type OAuthState = {
   provider: "google" | "apple";
   returnUrl: string;
+  refName?: string;
 };
 
 const DEFAULT_RETURN_URL = "/dashboard";
@@ -19,7 +20,8 @@ function getQueryParam(req: Request, key: string): string | undefined {
 
 function getRequestBaseUrl(req: Request) {
   const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol = typeof forwardedProto === "string" ? forwardedProto : req.protocol || "http";
+  const protocol =
+    typeof forwardedProto === "string" ? forwardedProto : req.protocol || "http";
   const host = req.headers.host || ENV.appUrl.replace(/https?:\/\//, "");
   return `${protocol}://${host}`;
 }
@@ -45,8 +47,14 @@ function assertOAuthConfig(provider: "google" | "apple") {
       throw new Error("Google OAuth is not configured");
     }
   }
+
   if (provider === "apple") {
-    if (!ENV.appleClientId || !ENV.appleTeamId || !ENV.appleKeyId || !ENV.applePrivateKey) {
+    if (
+      !ENV.appleClientId ||
+      !ENV.appleTeamId ||
+      !ENV.appleKeyId ||
+      !ENV.applePrivateKey
+    ) {
       throw new Error("Apple OAuth is not configured");
     }
   }
@@ -54,9 +62,21 @@ function assertOAuthConfig(provider: "google" | "apple") {
 
 function buildOAuthRedirectUrl(req: Request, provider: "google" | "apple") {
   const baseUrl = getRequestBaseUrl(req);
+
+  const rawRef = getQueryParam(req, "ref");
+  const refName =
+    rawRef && /^[a-zA-Z0-9@._+-]{1,320}$/.test(rawRef)
+      ? rawRef.trim().toLowerCase()
+      : undefined;
+
   if (provider === "google") {
     const redirectUri = `${baseUrl}/api/auth/callback`;
-    const state = encodeState({ provider, returnUrl: DEFAULT_RETURN_URL });
+    const state = encodeState({
+      provider,
+      returnUrl: DEFAULT_RETURN_URL,
+      refName,
+    });
+
     const params = new URLSearchParams({
       client_id: ENV.googleClientId,
       redirect_uri: redirectUri,
@@ -66,11 +86,17 @@ function buildOAuthRedirectUrl(req: Request, provider: "google" | "apple") {
       prompt: "consent",
       state,
     });
+
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 
   const redirectUri = `${baseUrl}/api/auth/callback`;
-  const state = encodeState({ provider, returnUrl: DEFAULT_RETURN_URL });
+  const state = encodeState({
+    provider,
+    returnUrl: DEFAULT_RETURN_URL,
+    refName,
+  });
+
   const params = new URLSearchParams({
     response_type: "code",
     response_mode: "form_post",
@@ -79,14 +105,15 @@ function buildOAuthRedirectUrl(req: Request, provider: "google" | "apple") {
     scope: "name email",
     state,
   });
+
   return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
 }
 
 export function registerOAuthRoutes(app: Express) {
-  app.get("/api/auth/google", async (_req: Request, res: Response) => {
+  app.get("/api/auth/google", async (req: Request, res: Response) => {
     try {
       assertOAuthConfig("google");
-      const url = buildOAuthRedirectUrl(_req, "google");
+      const url = buildOAuthRedirectUrl(req, "google");
       res.redirect(url);
     } catch (error) {
       console.error("[OAuth] Google auth start failed", error);
@@ -94,10 +121,10 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
-  app.get("/api/auth/apple", async (_req: Request, res: Response) => {
+  app.get("/api/auth/apple", async (req: Request, res: Response) => {
     try {
       assertOAuthConfig("apple");
-      const url = buildOAuthRedirectUrl(_req, "apple");
+      const url = buildOAuthRedirectUrl(req, "apple");
       res.redirect(url);
     } catch (error) {
       console.error("[OAuth] Apple auth start failed", error);
@@ -107,7 +134,8 @@ export function registerOAuthRoutes(app: Express) {
 
   app.all("/api/auth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code") || (req.body && req.body.code);
-    const stateValue = getQueryParam(req, "state") || (req.body && req.body.state);
+    const stateValue =
+      getQueryParam(req, "state") || (req.body && req.body.state);
 
     if (!code || !stateValue) {
       res.status(400).json({ error: "code and state are required" });
@@ -115,6 +143,7 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     const state = decodeState(stateValue);
+
     if (!state) {
       res.status(400).json({ error: "Invalid OAuth state" });
       return;
@@ -122,14 +151,23 @@ export function registerOAuthRoutes(app: Express) {
 
     try {
       assertOAuthConfig(state.provider);
+
       const redirectUri = `${getRequestBaseUrl(req)}/api/auth/callback`;
-      const tokenResponse = await sdk.exchangeCodeForToken(state.provider, code, redirectUri);
+      const tokenResponse = await sdk.exchangeCodeForToken(
+        state.provider,
+        code,
+        redirectUri
+      );
+
       const userInfo = await sdk.getUserInfo(state.provider, tokenResponse);
 
       if (!userInfo.openId) {
         res.status(400).json({ error: "openId missing from user info" });
         return;
       }
+
+      const existingUser = await db.getUserByOpenId(userInfo.openId);
+      const isNewUser = !existingUser;
 
       const user = await db.upsertUser({
         openId: userInfo.openId,
@@ -143,13 +181,22 @@ export function registerOAuthRoutes(app: Express) {
         throw new Error("Failed to create or update user");
       }
 
+      if (isNewUser && state.refName) {
+        await db.attachReferralToNewUser(user.id, state.refName);
+      }
+
       const sessionToken = await sdk.createSessionToken(user.id.toString(), {
         name: user.name || "",
         expiresInMs: ONE_YEAR_MS,
       });
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+      res.cookie(COOKIE_NAME, sessionToken, {
+        ...cookieOptions,
+        maxAge: ONE_YEAR_MS,
+      });
+
       res.redirect(302, state.returnUrl);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);

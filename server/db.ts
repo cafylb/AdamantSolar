@@ -1,37 +1,28 @@
 import { ENV } from "./_core/env";
 import { Pool } from "pg";
 
+const DEFAULT_REFERRAL_PERCENT = 10;
+
 let pool: Pool | null = null;
 
 function ensurePool(): Pool | null {
   if (pool) return pool;
-
   const connectionString = ENV.databaseUrl;
   if (!connectionString) return null;
-
   pool = new Pool({ connectionString });
-
   pool.on("error", (err: unknown) => {
     console.error("Postgres pool error:", err);
     pool = null;
   });
-
   return pool;
 }
 
-function genReferralCode(seed: string): string {
-  let h = 0;
-
-  for (let i = 0; i < seed.length; i++) {
-    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-
-  return "AS" + h.toString(36).toUpperCase().padStart(6, "0").slice(0, 8);
+function normalizeRefName(name: string) {
+  return String(name || "").trim().toLowerCase();
 }
 
 function mapUserRow(r: any) {
   if (!r) return null;
-
   return {
     id: r.id,
     openId: r.openid ?? r.openId,
@@ -40,7 +31,8 @@ function mapUserRow(r: any) {
     loginMethod: r.loginmethod ?? r.loginMethod ?? null,
     role: r.role ?? null,
     balance: typeof r.balance === "number" ? r.balance : Number(r.balance ?? 0),
-    referralCode: r.referralcode ?? r.referralCode ?? null,
+    referredByUserId: r.referredbyuserid ?? r.referredByUserId ?? null,
+    referralName: r.referralname ?? r.referralName ?? null,
     createdAt: r.createdat ?? r.createdAt ?? null,
     updatedAt: r.updatedat ?? r.updatedAt ?? null,
     lastSignedIn: r.lastsignedin ?? r.lastSignedIn ?? null,
@@ -49,7 +41,6 @@ function mapUserRow(r: any) {
 
 function mapUserProfileRow(r: any) {
   if (!r) return null;
-
   return {
     id: r.id,
     userId: r.userid ?? r.userId,
@@ -62,7 +53,6 @@ function mapUserProfileRow(r: any) {
 
 function mapOrderRow(r: any) {
   if (!r) return null;
-
   return {
     id: r.id,
     userId: r.userid ?? r.userId,
@@ -79,7 +69,28 @@ function mapOrderRow(r: any) {
     contactNumber: r.contactnumber ?? r.contactNumber ?? null,
     hideTime: r.hidetime ?? r.hideTime ?? false,
     deliveryAddress: r.deliveryaddress ?? r.deliveryAddress ?? null,
+    referralName: r.referralname ?? r.referralName ?? null,
     status: r.status ?? null,
+    createdAt: r.createdat ?? r.createdAt ?? null,
+    updatedAt: r.updatedat ?? r.updatedAt ?? null,
+  };
+}
+
+function mapReferralRow(r: any) {
+  if (!r) return null;
+  return {
+    name: r.name,
+    type: r.type ?? "marketing",
+    title: r.title ?? null,
+    ownerUserId: r.owneruserid ?? r.ownerUserId ?? null,
+    clicks: Number(r.clicks ?? 0),
+    signups: Number(r.signups ?? 0),
+    ordersBought: Number(r.ordersbought ?? r.ordersBought ?? 0),
+    totalTopUp: Number(r.totaltopup ?? r.totalTopUp ?? 0),
+    commissionPercent: Number(
+      r.commissionpercent ?? r.commissionPercent ?? DEFAULT_REFERRAL_PERCENT
+    ),
+    commissionPaid: Number(r.commissionpaid ?? r.commissionPaid ?? 0),
     createdAt: r.createdat ?? r.createdAt ?? null,
     updatedAt: r.updatedat ?? r.updatedAt ?? null,
   };
@@ -98,7 +109,8 @@ async function ensureSchema() {
       loginMethod VARCHAR(64),
       role VARCHAR(32) NOT NULL DEFAULT 'user',
       balance INTEGER NOT NULL DEFAULT 0,
-      referralCode VARCHAR(32),
+      referredByUserId INTEGER,
+      referralName VARCHAR(320),
       createdAt TIMESTAMP WITH TIME ZONE DEFAULT now(),
       updatedAt TIMESTAMP WITH TIME ZONE DEFAULT now(),
       lastSignedIn TIMESTAMP WITH TIME ZONE DEFAULT now()
@@ -131,29 +143,80 @@ async function ensureSchema() {
       contactNumber VARCHAR(64),
       hideTime BOOLEAN NOT NULL DEFAULT false,
       deliveryAddress VARCHAR(500) NOT NULL,
+      referralName VARCHAR(320),
       status VARCHAR(32) NOT NULL DEFAULT 'pending',
       createdAt TIMESTAMP WITH TIME ZONE DEFAULT now(),
       updatedAt TIMESTAMP WITH TIME ZONE DEFAULT now()
     );
 
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS balance INTEGER NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS referralCode VARCHAR(32);
+    CREATE TABLE IF NOT EXISTS referralLinks (
+      name VARCHAR(320) PRIMARY KEY,
+      type VARCHAR(32) NOT NULL DEFAULT 'marketing',
+      title VARCHAR(320),
+      ownerUserId INTEGER,
+      clicks INTEGER NOT NULL DEFAULT 0,
+      signups INTEGER NOT NULL DEFAULT 0,
+      ordersBought INTEGER NOT NULL DEFAULT 0,
+      totalTopUp INTEGER NOT NULL DEFAULT 0,
+      commissionPercent INTEGER NOT NULL DEFAULT ${DEFAULT_REFERRAL_PERCENT},
+      commissionPaid INTEGER NOT NULL DEFAULT 0,
+      createdAt TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      updatedAt TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS users_referralcode_unique_idx ON users (referralCode);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS balance INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS referredByUserId INTEGER;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS referralName VARCHAR(320);
+
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS referralName VARCHAR(320);
+
+    ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS type VARCHAR(32) NOT NULL DEFAULT 'marketing';
+    ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS title VARCHAR(320);
+    ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS ownerUserId INTEGER;
+    ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS signups INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS commissionPercent INTEGER NOT NULL DEFAULT ${DEFAULT_REFERRAL_PERCENT};
+    ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS commissionPaid INTEGER NOT NULL DEFAULT 0;
+
+    DELETE FROM referralLinks WHERE name = 'adamant-stars' AND type = 'marketing';
   `);
 }
 
 export async function getPool(): Promise<Pool | null> {
   const p = ensurePool();
   if (!p) return null;
-
   try {
     await ensureSchema();
   } catch (e) {
     console.warn("[Database] Failed to ensure schema:", e);
   }
-
   return p;
+}
+
+export async function ensureUserReferralLink(userId: number, email?: string | null) {
+  const p = ensurePool();
+  if (!p || !email) return null;
+  await ensureSchema();
+
+  const name = normalizeRefName(email);
+  if (!name) return null;
+
+  try {
+    const res = await p.query(
+      `INSERT INTO referralLinks (name, type, title, ownerUserId, commissionPercent)
+       VALUES ($1, 'user', $2, $3, $4)
+       ON CONFLICT (name) DO UPDATE SET
+         type = 'user',
+         title = EXCLUDED.title,
+         ownerUserId = COALESCE(referralLinks.ownerUserId, EXCLUDED.ownerUserId),
+         updatedAt = now()
+       RETURNING *`,
+      [name, email, userId, DEFAULT_REFERRAL_PERCENT]
+    );
+    return mapReferralRow(res.rows[0]);
+  } catch (e) {
+    console.warn("[Database] ensureUserReferralLink failed:", e);
+    return null;
+  }
 }
 
 export async function upsertUser(user: {
@@ -165,24 +228,19 @@ export async function upsertUser(user: {
   lastSignedIn?: Date;
 }) {
   if (!user.openId) throw new Error("openId required");
-
   const p = ensurePool();
   if (!p) return null;
-
   await ensureSchema();
 
   try {
-    const referralCode = genReferralCode(user.openId);
-
     const res = await p.query(
-      `INSERT INTO users (openId, name, email, loginMethod, role, lastSignedIn, referralCode)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO users (openId, name, email, loginMethod, role, lastSignedIn)
+       VALUES ($1,$2,$3,$4,$5,$6)
        ON CONFLICT (openId) DO UPDATE SET
          name = EXCLUDED.name,
          email = EXCLUDED.email,
          loginMethod = EXCLUDED.loginMethod,
-         lastSignedIn = EXCLUDED.lastSignedIn,
-         referralCode = COALESCE(users.referralCode, EXCLUDED.referralCode)
+         lastSignedIn = EXCLUDED.lastSignedIn
        RETURNING *`,
       [
         user.openId,
@@ -191,11 +249,16 @@ export async function upsertUser(user: {
         user.loginMethod ?? null,
         user.role ?? "user",
         user.lastSignedIn ?? new Date(),
-        referralCode,
       ]
     );
 
-    return res.rows[0] ? mapUserRow(res.rows[0]) : null;
+    const mapped = res.rows[0] ? mapUserRow(res.rows[0]) : null;
+
+    if (mapped?.id && mapped?.email) {
+      await ensureUserReferralLink(mapped.id, mapped.email);
+    }
+
+    return mapped;
   } catch (e) {
     console.warn("[Database] upsertUser failed:", e);
     pool = null;
@@ -206,16 +269,20 @@ export async function upsertUser(user: {
 export async function getUserByOpenId(openId: string) {
   const p = ensurePool();
   if (!p) return undefined;
-
   await ensureSchema();
 
   try {
-    const res = await p.query(
-      `SELECT * FROM users WHERE openId = $1 LIMIT 1`,
-      [openId]
-    );
+    const res = await p.query(`SELECT * FROM users WHERE openId = $1 LIMIT 1`, [
+      openId,
+    ]);
 
-    return res.rows[0] ? mapUserRow(res.rows[0]) : undefined;
+    const user = res.rows[0] ? mapUserRow(res.rows[0]) : undefined;
+
+    if (user?.id && user?.email) {
+      await ensureUserReferralLink(user.id, user.email);
+    }
+
+    return user;
   } catch (e) {
     console.warn("[Database] getUserByOpenId failed:", e);
     pool = null;
@@ -226,16 +293,18 @@ export async function getUserByOpenId(openId: string) {
 export async function getUserById(id: number) {
   const p = ensurePool();
   if (!p) return undefined;
-
   await ensureSchema();
 
   try {
-    const res = await p.query(
-      `SELECT * FROM users WHERE id = $1 LIMIT 1`,
-      [id]
-    );
+    const res = await p.query(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [id]);
 
-    return res.rows[0] ? mapUserRow(res.rows[0]) : undefined;
+    const user = res.rows[0] ? mapUserRow(res.rows[0]) : undefined;
+
+    if (user?.id && user?.email) {
+      await ensureUserReferralLink(user.id, user.email);
+    }
+
+    return user;
   } catch (e) {
     console.warn("[Database] getUserById failed:", e);
     pool = null;
@@ -243,47 +312,338 @@ export async function getUserById(id: number) {
   }
 }
 
-export async function ensureReferralCode(userId: number): Promise<string | null> {
+export async function getReferralInfo(name: string) {
   const p = ensurePool();
   if (!p) return null;
+  await ensureSchema();
+
+  const refName = normalizeRefName(name);
+  if (!refName) return null;
+
+  try {
+    const link = await p.query(
+      `SELECT * FROM referralLinks WHERE name = $1 LIMIT 1`,
+      [refName]
+    );
+
+    if (!link.rows[0]) return null;
+
+    const users = await p.query(
+      `SELECT id, email, name, createdAt
+       FROM users
+       WHERE referralName = $1
+       ORDER BY createdAt DESC`,
+      [refName]
+    );
+
+    return {
+      ...mapReferralRow(link.rows[0]),
+      referredUsers: users.rows.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        createdAt: u.createdat ?? u.createdAt,
+      })),
+    };
+  } catch (e) {
+    console.warn("[Database] getReferralInfo failed:", e);
+    return null;
+  }
+}
+
+export async function setReferralLink(
+  name: string,
+  title?: string,
+  commissionPercent = DEFAULT_REFERRAL_PERCENT
+) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const refName = normalizeRefName(name);
+  if (!refName) return null;
+
+  try {
+    const res = await p.query(
+      `INSERT INTO referralLinks (name, type, title, commissionPercent)
+       VALUES ($1, 'marketing', $2, $3)
+       ON CONFLICT (name) DO UPDATE SET
+         title = COALESCE(EXCLUDED.title, referralLinks.title),
+         commissionPercent = EXCLUDED.commissionPercent,
+         updatedAt = now()
+       RETURNING *`,
+      [refName, title ?? refName, commissionPercent]
+    );
+
+    return mapReferralRow(res.rows[0]);
+  } catch (e) {
+    console.warn("[Database] setReferralLink failed:", e);
+    return null;
+  }
+}
+
+export async function recordReferralClick(name: string) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const refName = normalizeRefName(name);
+  if (!refName) return null;
+
+  try {
+    const res = await p.query(
+      `UPDATE referralLinks
+       SET clicks = clicks + 1, updatedAt = now()
+       WHERE name = $1
+       RETURNING *`,
+      [refName]
+    );
+
+    return res.rows[0] ? mapReferralRow(res.rows[0]) : null;
+  } catch (e) {
+    console.warn("[Database] recordReferralClick failed:", e);
+    return null;
+  }
+}
+
+export async function attachReferralToNewUser(userId: number, name: string) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const refName = normalizeRefName(name);
+  if (!refName) return null;
+
+  try {
+    const link = await p.query(
+      `SELECT * FROM referralLinks WHERE name = $1 LIMIT 1`,
+      [refName]
+    );
+
+    const ref = mapReferralRow(link.rows[0]);
+    if (!ref) return null;
+
+    if (ref.type === "user" && ref.ownerUserId === userId) {
+      return { attached: false, reason: "self_referral", referral: ref };
+    }
+
+    const current = await p.query(
+      `SELECT referralName FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    const alreadyHasReferral =
+      current.rows[0]?.referralname ?? current.rows[0]?.referralName ?? null;
+
+    if (alreadyHasReferral) {
+      return { attached: false, reason: "already_registered", referral: ref };
+    }
+
+    await p.query(
+      `UPDATE users
+       SET referralName = $2, referredByUserId = $3, updatedAt = now()
+       WHERE id = $1`,
+      [userId, refName, ref.ownerUserId]
+    );
+
+    await p.query(
+      `UPDATE referralLinks
+       SET signups = signups + 1, updatedAt = now()
+       WHERE name = $1`,
+      [refName]
+    );
+
+    return { attached: true, referral: ref };
+  } catch (e) {
+    console.warn("[Database] attachReferralToNewUser failed:", e);
+    return null;
+  }
+}
+
+export async function recordReferralOrder(name: string | null | undefined) {
+  if (!name) return null;
+
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const refName = normalizeRefName(name);
+  if (!refName) return null;
+
+  try {
+    const res = await p.query(
+      `UPDATE referralLinks
+       SET ordersBought = ordersBought + 1, updatedAt = now()
+       WHERE name = $1
+       RETURNING *`,
+      [refName]
+    );
+
+    return res.rows[0] ? mapReferralRow(res.rows[0]) : null;
+  } catch (e) {
+    console.warn("[Database] recordReferralOrder failed:", e);
+    return null;
+  }
+}
+
+export async function recordUserTopUp(userId: number, amount: number) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const topUpAmount = Math.max(0, Math.floor(Number(amount || 0)));
+  if (topUpAmount <= 0) return null;
+
+  try {
+    await p.query(
+      `UPDATE users SET balance = balance + $2, updatedAt = now() WHERE id = $1`,
+      [userId, topUpAmount]
+    );
+
+    const userRes = await p.query(
+      `SELECT referralName, referredByUserId FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    const referralName =
+      userRes.rows[0]?.referralname ?? userRes.rows[0]?.referralName ?? null;
+
+    const referredByUserId =
+      userRes.rows[0]?.referredbyuserid ??
+      userRes.rows[0]?.referredByUserId ??
+      null;
+
+    if (!referralName) {
+      return { amount: topUpAmount, commission: 0 };
+    }
+
+    const refRes = await p.query(
+      `SELECT * FROM referralLinks WHERE name = $1 LIMIT 1`,
+      [referralName]
+    );
+
+    const ref = mapReferralRow(refRes.rows[0]);
+    if (!ref) {
+      return { amount: topUpAmount, commission: 0 };
+    }
+
+    const commission = Math.floor((topUpAmount * ref.commissionPercent) / 100);
+
+    await p.query(
+      `UPDATE referralLinks
+       SET totalTopUp = totalTopUp + $2,
+           commissionPaid = commissionPaid + $3,
+           updatedAt = now()
+       WHERE name = $1`,
+      [referralName, topUpAmount, commission]
+    );
+
+    if (referredByUserId && commission > 0) {
+      await p.query(
+        `UPDATE users SET balance = balance + $2, updatedAt = now() WHERE id = $1`,
+        [referredByUserId, commission]
+      );
+    }
+
+    return { amount: topUpAmount, commission, referralName };
+  } catch (e) {
+    console.warn("[Database] recordUserTopUp failed:", e);
+    return null;
+  }
+}
+
+export async function clearReferralTopUp(name: string) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const refName = normalizeRefName(name);
+  if (!refName) return null;
+
+  try {
+    const res = await p.query(
+      `UPDATE referralLinks
+       SET totalTopUp = 0, updatedAt = now()
+       WHERE name = $1
+       RETURNING *`,
+      [refName]
+    );
+
+    return res.rows[0] ? mapReferralRow(res.rows[0]) : null;
+  } catch (e) {
+    console.warn("[Database] clearReferralTopUp failed:", e);
+    return null;
+  }
+}
+
+export async function getOverallRefInfo() {
+  const p = ensurePool();
+
+  if (!p) {
+    return {
+      users: 0,
+      ordersBought: 0,
+      totalTopUp: 0,
+      commissionPaid: 0,
+      links: [],
+    };
+  }
 
   await ensureSchema();
 
   try {
-    const existing = await p.query(
-      `SELECT referralCode FROM users WHERE id = $1 LIMIT 1`,
-      [userId]
+    const users = await p.query(`SELECT COUNT(*)::int AS count FROM users`);
+    const orders = await p.query(`SELECT COUNT(*)::int AS count FROM orders`);
+
+    const totals = await p.query(
+      `SELECT
+         COALESCE(SUM(totalTopUp), 0)::int AS totalTopUp,
+         COALESCE(SUM(commissionPaid), 0)::int AS commissionPaid
+       FROM referralLinks`
     );
 
-    const current =
-      existing.rows[0]?.referralcode ?? existing.rows[0]?.referralCode ?? null;
+    const links = await p.query(`SELECT * FROM referralLinks ORDER BY createdAt DESC`);
 
-    if (current) return current;
-
-    const code = genReferralCode("user-" + userId);
-
-    const upd = await p.query(
-      `UPDATE users
-       SET referralCode = $2, updatedAt = now()
-       WHERE id = $1 AND referralCode IS NULL
-       RETURNING referralCode`,
-      [userId, code]
-    );
-
-    return upd.rows[0]?.referralcode ?? upd.rows[0]?.referralCode ?? code;
+    return {
+      users: Number(users.rows[0]?.count ?? 0),
+      ordersBought: Number(orders.rows[0]?.count ?? 0),
+      totalTopUp: Number(totals.rows[0]?.totaltopup ?? totals.rows[0]?.totalTopUp ?? 0),
+      commissionPaid: Number(
+        totals.rows[0]?.commissionpaid ?? totals.rows[0]?.commissionPaid ?? 0
+      ),
+      links: links.rows.map(mapReferralRow),
+    };
   } catch (e) {
-    console.warn("[Database] ensureReferralCode failed:", e);
-    return null;
+    console.warn("[Database] getOverallRefInfo failed:", e);
+
+    return {
+      users: 0,
+      ordersBought: 0,
+      totalTopUp: 0,
+      commissionPaid: 0,
+      links: [],
+    };
   }
 }
 
 export async function createOrder(data: any) {
   const p = ensurePool();
   if (!p) return null;
-
   await ensureSchema();
 
   try {
+    const userRes = await p.query(
+      `SELECT referralName FROM users WHERE id = $1 LIMIT 1`,
+      [data.userId]
+    );
+
+    const userReferralName =
+      userRes.rows[0]?.referralname ?? userRes.rows[0]?.referralName ?? null;
+
+    const referralName = userReferralName ? normalizeRefName(userReferralName) : null;
+    const validReferral = referralName ? await getReferralInfo(referralName) : null;
+    const storedReferralName = validReferral ? referralName : null;
+
     const res = await p.query(
       `INSERT INTO orders (
         userId,
@@ -300,9 +660,10 @@ export async function createOrder(data: any) {
         contactNumber,
         hideTime,
         deliveryAddress,
+        referralName,
         status
       )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING *`,
       [
         data.userId,
@@ -319,9 +680,14 @@ export async function createOrder(data: any) {
         data.contactNumber ?? null,
         data.hideTime ? true : false,
         data.deliveryAddress,
+        storedReferralName,
         data.status ?? "pending",
       ]
     );
+
+    if (storedReferralName) {
+      await recordReferralOrder(storedReferralName);
+    }
 
     return mapOrderRow(res.rows[0]) ?? null;
   } catch (e) {
@@ -333,7 +699,6 @@ export async function createOrder(data: any) {
 export async function getOrdersByUserId(userId: number) {
   const p = ensurePool();
   if (!p) return [];
-
   await ensureSchema();
 
   try {
@@ -352,7 +717,6 @@ export async function getOrdersByUserId(userId: number) {
 export async function getUserProfile(userId: number) {
   const p = ensurePool();
   if (!p) return null;
-
   await ensureSchema();
 
   try {
@@ -375,7 +739,6 @@ export async function upsertUserProfile(data: {
 }) {
   const p = ensurePool();
   if (!p) return null;
-
   await ensureSchema();
 
   try {

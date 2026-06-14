@@ -1,7 +1,16 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLanguage } from "@/_core/LanguageContext";
 import type { Lang } from "@/_core/LanguageContext";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +24,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Copy, Globe, LogOut, Plus, User, Wallet } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Copy, CreditCard, Globe, LogOut, User, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
@@ -25,9 +35,23 @@ const LANGS: { value: Lang; label: string }[] = [
   { value: "uz", label: "O'zbekcha" },
 ];
 
+const TOP_UP_AMOUNTS = ["50000", "100000", "150000"];
+
+const formatMoney = (value: number | string) => {
+  const number = typeof value === "string" ? Number(value) : value;
+
+  if (!Number.isFinite(number)) {
+    return "0";
+  }
+
+  return Math.floor(number).toLocaleString("de-DE");
+};
+
 export function ProfileMenu() {
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLanguage();
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState("50000");
 
   const u = user as any;
 
@@ -43,133 +67,208 @@ export function ProfileMenu() {
         ? u.balance
         : 0;
 
-  const refCode: string =
-    profile?.referralCode ?? u?.referralCode ?? u?.openId ?? String(u?.id ?? "");
+  const refCode = profile?.referralCode ?? user?.email ?? "";
 
-  const formattedBalance = `${balance.toLocaleString()} ${t("currency")}`;
+  const formattedBalance = `${formatMoney(balance)} ${t("currency")}`;
 
   const handleCopyRef = async () => {
-    const link = `${window.location.origin}/?ref=${refCode}`;
+    const link = `${window.location.origin}/?ref=${encodeURIComponent(refCode)}`;
 
     try {
       await navigator.clipboard.writeText(link);
       toast.success(t("ref_link_copied"));
     } catch {
-      toast.message(link);
+      toast.success(t("ref_link_copied"));
     }
   };
 
   const handleTopUp = () => {
+    setTopUpOpen(true);
+  };
+
+  const handleUzumContinue = () => {
     toast.info(t("top_up_soon"));
   };
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={t("profile")}
-        >
-          <User className="h-5 w-5 text-foreground" />
-        </button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" sideOffset={8} className="w-72">
-        {/* Identity */}
-        <DropdownMenuLabel className="flex items-center gap-3 py-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted shrink-0">
-            <User className="h-5 w-5 text-muted-foreground" />
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate leading-none">
-              Adamant User
-            </p>
-            <p className="text-xs text-muted-foreground truncate mt-1">
-              {user?.email}
-            </p>
-          </div>
-        </DropdownMenuLabel>
-
-        <DropdownMenuSeparator />
-
-        {/* Balance */}
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          <Wallet className="mr-2 h-4 w-4 text-muted-foreground" />
-
-          <div>
-            <p className="text-xs text-muted-foreground">{t("balance")}</p>
-            <p className="text-sm font-semibold">{formattedBalance}</p>
-          </div>
-
-          <Button
-            size="sm"
-            className="ml-auto h-8 px-3"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTopUp();
-            }}
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-accent hover:text-foreground focus:text-foreground active:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={t("profile")}
           >
-            <Plus className="h-4 w-4 mr-1" />
-            {t("top_up")}
-          </Button>
-        </DropdownMenuItem>
+            <User className="h-4 w-4 !text-foreground" />
+            <span>{t("profile")}</span>
+          </button>
+        </DropdownMenuTrigger>
 
-        <DropdownMenuSeparator />
+        <DropdownMenuContent align="end" sideOffset={8} className="w-72">
+          <DropdownMenuLabel className="flex items-center gap-3 py-2">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+              <User className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium leading-none">Adamant User</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+          </DropdownMenuLabel>
 
-        {/* Referral */}
-        <DropdownMenuItem
-          onSelect={(e) => {
-            e.preventDefault();
-            handleCopyRef();
-          }}
-          className="cursor-pointer"
-        >
-          <Copy className="mr-2 h-4 w-4" />
-          <span>{t("copy_ref_link")}</span>
-        </DropdownMenuItem>
+          <DropdownMenuSeparator />
 
-        {/* Language */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="cursor-pointer">
-            <Globe className="mr-2 h-4 w-4" />
-            <span>{t("language")}</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {lang.toUpperCase()}
-            </span>
-          </DropdownMenuSubTrigger>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <Wallet className="mr-2 h-4 w-4 text-muted-foreground" />
 
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup
-              value={lang}
-              onValueChange={(v) => setLang(v as Lang)}
+            <div>
+              <p className="text-xs text-muted-foreground">{t("balance")}</p>
+              <p className="text-sm font-semibold">{formattedBalance}</p>
+            </div>
+
+            <Button
+              size="sm"
+              className="ml-auto h-8 bg-black px-3 text-white hover:bg-zinc-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTopUp();
+              }}
             >
-              {LANGS.map((l) => (
-                <DropdownMenuRadioItem
-                  key={l.value}
-                  value={l.value}
-                  className="cursor-pointer"
-                >
-                  {l.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+              <CreditCard className="mr-1 h-4 w-4 !text-white" />
+              {t("top_up")}
+            </Button>
+          </DropdownMenuItem>
 
-        <DropdownMenuSeparator />
+          <DropdownMenuSeparator />
 
-        {/* Sign out */}
-        <DropdownMenuItem
-          onClick={logout}
-          className="cursor-pointer text-red-500 focus:text-red-500"
-        >
-          <LogOut className="mr-2 h-4 w-4 text-red-500" />
-          <span>{t("sign_out")}</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              handleCopyRef();
+            }}
+            className="cursor-pointer"
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            <span>{t("copy_ref_link")}</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="cursor-pointer [&>svg:last-child]:!ml-2">
+              <Globe className="mr-2 h-4 w-4" />
+              <span>{t("language")}</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {lang.toUpperCase()}
+              </span>
+            </DropdownMenuSubTrigger>
+
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={lang}
+                onValueChange={(v) => setLang(v as Lang)}
+              >
+                {LANGS.map((l) => (
+                  <DropdownMenuRadioItem
+                    key={l.value}
+                    value={l.value}
+                    className="cursor-pointer"
+                  >
+                    {l.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onClick={logout}
+            className="cursor-pointer text-red-500 focus:text-red-500"
+          >
+            <LogOut className="mr-2 h-4 w-4 text-red-500" />
+            <span>{t("sign_out")}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={topUpOpen} onOpenChange={setTopUpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("top_up_via_uzum")}</DialogTitle>
+            <DialogDescription>{t("uzum_top_up_description")}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/40 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background">
+                  <CreditCard className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Uzum Bank</p>
+                  <p className="text-xs text-muted-foreground">{t("uzum_ready_for_payment")}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("top_up_amount")}</label>
+              <Input
+                inputMode="numeric"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value.replace(/\D/g, ""))}
+                placeholder="50000"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {TOP_UP_AMOUNTS.map((amount) => {
+                const selected = topUpAmount === amount;
+
+                return (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setTopUpAmount(amount)}
+                    className={`min-h-9 rounded-md border px-2 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                      selected
+                        ? "border-black bg-black text-white hover:bg-zinc-800"
+                        : "border-border bg-background text-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {formatMoney(amount)} {t("currency")}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Uzum Bank</p>
+                  <p className="text-xs text-muted-foreground">{t("uzum_payment_method")}</p>
+                </div>
+                <span className="rounded-md border border-black bg-black px-2 py-1 text-xs text-white">
+                  {t("selected")}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTopUpOpen(false)}>
+              {t("back")}
+            </Button>
+            <Button
+              className="bg-black text-white hover:bg-zinc-800"
+              onClick={handleUzumContinue}
+            >
+              <CreditCard className="mr-1 h-4 w-4 !text-white" />
+              {t("continue_to_uzum")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-export default ProfileMenu;
+export default ProfileMenu; 

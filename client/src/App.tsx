@@ -1,7 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, useLocation, Redirect } from "wouter";
-import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./_core/LanguageContext";
@@ -9,12 +8,16 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Spinner } from "./components/ui/spinner";
+import { useEffect } from "react";
+import {
+  VIEW_TRANSITION_DURATION_MS,
+  VIEW_TRANSITION_MOBILE_DURATION_MS,
+} from "./const";
 
 function Router() {
   const [location] = useLocation();
   const { isAuthenticated, loading } = useAuth();
 
-  // Show loading state while checking auth
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -23,12 +26,10 @@ function Router() {
     );
   }
 
-  // Special test route: bypass auth and show dashboard directly
   if (location === "/testversion") {
     return <Dashboard bypassAuth />;
   }
 
-  // Redirect to login if not authenticated (default behaviour)
   if (!isAuthenticated) {
     return (
       <Switch>
@@ -40,7 +41,6 @@ function Router() {
     );
   }
 
-  // Authenticated routes
   return (
     <Switch>
       <Route path="/buy">{() => <Dashboard />}</Route>
@@ -55,9 +55,36 @@ function Router() {
   );
 }
 
-// keep router simple — special case handled above
-
 function App() {
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--view-transition-duration",
+      `${VIEW_TRANSITION_DURATION_MS}ms`
+    );
+    document.documentElement.style.setProperty(
+      "--view-transition-mobile-duration",
+      `${VIEW_TRANSITION_MOBILE_DURATION_MS}ms`
+    );
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+
+    if (!ref || !/^[a-zA-Z0-9@._+-]{1,320}$/.test(ref)) {
+      return;
+    }
+
+    fetch(`/api/ref/click/${encodeURIComponent(ref)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.counted) {
+          localStorage.setItem("referralName", ref);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">

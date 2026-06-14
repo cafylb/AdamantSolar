@@ -5,10 +5,10 @@ import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import {
   createOrder,
+  ensureUserReferralLink,
   getOrdersByUserId,
   upsertUserProfile,
   getUserProfile,
-  ensureReferralCode,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 
@@ -16,16 +16,11 @@ export const appRouter = router({
   system: systemRouter,
 
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(opts => opts.ctx.user),
 
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-
-      ctx.res.clearCookie(COOKIE_NAME, {
-        ...cookieOptions,
-        maxAge: -1,
-      });
-
+      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return {
         success: true,
       } as const;
@@ -37,19 +32,16 @@ export const appRouter = router({
       const user = ctx.user;
 
       if (!user) {
-        return {
-          balance: 0,
-          referralCode: null as string | null,
-        };
+        return { balance: 0, referralCode: "" };
       }
 
       const balance =
         typeof (user as any).balance === "number" ? (user as any).balance : 0;
 
-      let referralCode: string | null = (user as any).referralCode ?? null;
+      const referralCode = user.email ? String(user.email).trim().toLowerCase() : "";
 
-      if (!referralCode) {
-        referralCode = await ensureReferralCode(user.id);
+      if (referralCode) {
+        await ensureUserReferralLink(user.id, referralCode);
       }
 
       return {
@@ -63,15 +55,12 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          location: z.string().refine(
-            (val) => {
-              const lower = val.toLowerCase();
-              return lower.includes("tashkent") || lower.includes("ташкент");
-            },
-            {
-              message: "Orders are only available in Tashkent",
-            }
-          ),
+          location: z.string().refine((val) => {
+            const lower = val.toLowerCase();
+            return lower.includes("tashkent") || lower.includes("ташкент");
+          }, {
+            message: "Orders are only available in Tashkent",
+          }),
           day: z.number().min(1).max(31),
           month: z.string().min(1),
           year: z.number().min(2000),
@@ -84,10 +73,17 @@ export const appRouter = router({
           hideTime: z.boolean().default(false),
           deliveryAddress: z.string().min(1, "Delivery address is required"),
           contactNumber: z.string().min(7, "Contact number is required"),
+          referralName: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
+        const tashkentKeywords = [
+          "tashkent",
+          "ташкент",
+          "узб",
+          "uzbek",
+        ];
+
         const addressLower = input.deliveryAddress.toLowerCase();
 
         const isTashkentAddress = tashkentKeywords.some((keyword) =>
@@ -115,14 +111,13 @@ export const appRouter = router({
           hideTime: input.hideTime ? 1 : 0,
           deliveryAddress: input.deliveryAddress,
           contactNumber: input.contactNumber,
+          referralName: input.referralName,
           status: "pending",
         });
 
         await notifyOwner({
           title: "New Order Received",
-          content: `New order from ${
-            ctx.user.name || ctx.user.email
-          }: ${input.mainTitle}. Delivery address: ${input.deliveryAddress}`,
+          content: `New order from ${ctx.user.name || ctx.user.email}: ${input.mainTitle}. Delivery address: ${input.deliveryAddress}`,
         });
 
         return order;
@@ -141,20 +136,23 @@ export const appRouter = router({
     upsert: protectedProcedure
       .input(
         z.object({
-          location: z.string().refine(
-            (val) => {
-              const lower = val.toLowerCase();
-              return lower.includes("tashkent") || lower.includes("ташкент");
-            },
-            {
-              message: "Location must be Tashkent",
-            }
-          ),
+          location: z.string().refine((val) => {
+            const lower = val.toLowerCase();
+            return lower.includes("tashkent") || lower.includes("ташкент");
+          }, {
+            message: "Location must be Tashkent",
+          }),
           deliveryAddress: z.string().min(1, "Delivery address is required"),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
+        const tashkentKeywords = [
+          "tashkent",
+          "ташкент",
+          "узб",
+          "uzbek",
+        ];
+
         const addressLower = input.deliveryAddress.toLowerCase();
 
         const isTashkentAddress = tashkentKeywords.some((keyword) =>

@@ -15,6 +15,13 @@ const translations: Record<Lang, Record<string, string>> = {
     currency: "сум",
     top_up: "Пополнить",
     top_up_soon: "Пополнение появится скоро",
+    top_up_via_uzum: "Пополнение через Uzum Bank",
+    uzum_top_up_description: "Выберите сумму и способ оплаты. Сейчас это только UI-заготовка.",
+    uzum_ready_for_payment: "Быстрое пополнение баланса",
+    top_up_amount: "Сумма пополнения",
+    uzum_payment_method: "Оплата через Uzum Bank",
+    selected: "Выбрано",
+    continue_to_uzum: "Продолжить",
     copy_ref_link: "Скопировать реф-ссылку",
     ref_link_copied: "Реф-ссылка скопирована",
     language: "Язык",
@@ -86,6 +93,13 @@ const translations: Record<Lang, Record<string, string>> = {
     currency: "UZS",
     top_up: "Top up",
     top_up_soon: "Top-up is coming soon",
+    top_up_via_uzum: "Top up via Uzum Bank",
+    uzum_top_up_description: "Choose the amount and payment method. This is UI-only for now.",
+    uzum_ready_for_payment: "Fast balance top-up",
+    top_up_amount: "Top-up amount",
+    uzum_payment_method: "Payment via Uzum Bank",
+    selected: "Selected",
+    continue_to_uzum: "Continue",
     copy_ref_link: "Copy referral link",
     ref_link_copied: "Referral link copied",
     language: "Language",
@@ -157,6 +171,13 @@ const translations: Record<Lang, Record<string, string>> = {
     currency: "so'm",
     top_up: "To'ldirish",
     top_up_soon: "To'ldirish tez orada",
+    top_up_via_uzum: "Uzum Bank orqali to'ldirish",
+    uzum_top_up_description: "Summani va to'lov usulini tanlang. Hozircha bu faqat UI.",
+    uzum_ready_for_payment: "Balansni tez to'ldirish",
+    top_up_amount: "To'ldirish summasi",
+    uzum_payment_method: "Uzum Bank orqali to'lov",
+    selected: "Tanlandi",
+    continue_to_uzum: "Davom etish",
     copy_ref_link: "Referal havolani nusxalash",
     ref_link_copied: "Referal havola nusxalandi",
     language: "Til",
@@ -241,8 +262,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [lang]);
 
   const t = (key: string) => translations[lang][key] ?? key;
+  const contextValue = { lang, t, setLang };
 
-  return <LanguageContext.Provider value={{ lang, t, setLang }}>{children}</LanguageContext.Provider>;
+  return <LanguageContext.Provider value={contextValue}>{children}</LanguageContext.Provider>;
 };
 
 export function useLanguage() {

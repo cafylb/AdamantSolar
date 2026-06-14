@@ -364,6 +364,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
         hideTime: formData.hideTime,
         deliveryAddress: formData.deliveryAddress,
         contactNumber: formData.contactNumber,
+        referralName: localStorage.getItem("referralName") || undefined,
       });
 
       toast.success("Order placed successfully!");

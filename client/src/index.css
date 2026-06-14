@@ -249,14 +249,14 @@
 
 html.transition-forward::view-transition-group(page-content),
 html.transition-backward::view-transition-group(page-content) {
-    animation-duration: 0.7s;
+    animation-duration: var(--view-transition-duration, 700ms);
     animation-timing-function: ease;
 }
 
 @media (max-width: 768px) {
   html.transition-forward::view-transition-group(page-content),
   html.transition-backward::view-transition-group(page-content) {
-      animation-duration: 0.45s;
+      animation-duration: var(--view-transition-mobile-duration, 450ms);
   }
 }
 

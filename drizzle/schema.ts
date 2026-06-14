@@ -3,32 +3,16 @@ import { pgEnum, pgTable, serial, text, timestamp, varchar, integer } from "driz
 export const roleEnum = pgEnum("role", ["user", "admin"]);
 export const statusEnum = pgEnum("status", ["pending", "processing", "completed", "cancelled"]);
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = pgTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: serial("id").primaryKey(),
-
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
-
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: roleEnum("role").default("user").notNull(),
-
-  /** Account balance in UZS. */
   balance: integer("balance").default(0).notNull(),
-
-  /** Unique referral code used to build the user's invite link. */
-  referralCode: varchar("referralCode", { length: 32 }).unique(),
-
+  referredByUserId: integer("referredByUserId"),
+  referralName: varchar("referralName", { length: 320 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -37,9 +21,6 @@ export const users = pgTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-/**
- * User profiles table - stores onboarding/profile information
- */
 export const userProfiles = pgTable("userProfiles", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
@@ -52,9 +33,24 @@ export const userProfiles = pgTable("userProfiles", {
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = typeof userProfiles.$inferInsert;
 
-/**
- * Orders table - stores all order submissions
- */
+export const referralLinks = pgTable("referralLinks", {
+  name: varchar("name", { length: 320 }).primaryKey(),
+  type: varchar("type", { length: 32 }).default("marketing").notNull(),
+  title: varchar("title", { length: 320 }),
+  ownerUserId: integer("ownerUserId"),
+  clicks: integer("clicks").default(0).notNull(),
+  signups: integer("signups").default(0).notNull(),
+  ordersBought: integer("ordersBought").default(0).notNull(),
+  totalTopUp: integer("totalTopUp").default(0).notNull(),
+  commissionPercent: integer("commissionPercent").default(10).notNull(),
+  commissionPaid: integer("commissionPaid").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ReferralLink = typeof referralLinks.$inferSelect;
+export type InsertReferralLink = typeof referralLinks.$inferInsert;
+
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
@@ -70,6 +66,7 @@ export const orders = pgTable("orders", {
   message: text("message"),
   hideTime: integer("hideTime").default(0).notNull(),
   deliveryAddress: varchar("deliveryAddress", { length: 500 }).notNull(),
+  referralName: varchar("referralName", { length: 320 }),
   status: statusEnum("status").default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
