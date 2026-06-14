@@ -4,5 +4,5 @@ export const AXIOS_TIMEOUT_MS = 30_000;
 export const UNAUTHED_ERR_MSG = 'Please login (10001)';
 export const NOT_ADMIN_ERR_MSG = 'You do not have required permission (10002)';
 
-export const REQUIRE_LOGIN = true; // set to true to require login, false to bypass
+export const REQUIRE_LOGIN = false; // set to true to require login, false to bypass
 export const TEST_USER_EMAIL = "AdamantSolar@gmail.com";

@@ -14,12 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+import { ProfileMenu } from "@/components/ProfileMenu";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
@@ -98,7 +93,7 @@ type DashboardProps = {
 
 export default function Dashboard({ bypassAuth = false }: DashboardProps) {
   const { user, logout } = useAuth();
-  const { lang, setLang, t } = useLanguage();
+  const { lang, t } = useLanguage();
   const [location, navigate] = useLocation();
   const tab = location === "/orders" ? "orders" : "buy";
 
@@ -454,31 +449,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
 
           {/* User Menu */}
           <div className="flex items-center gap-3 justify-end min-w-0">
-            <span className="text-sm text-subtle truncate max-w-[120px] sm:max-w-[200px] hidden sm:inline">
-              {user?.email}
-            </span>
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger>
-                <button
-                  className="px-3 py-2 rounded-lg border text-sm"
-                  aria-label="Select language"
-                >
-                  {lang.toUpperCase()}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent sideOffset={6}>
-                <DropdownMenuItem onSelect={() => setLang("ru")}>RU</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setLang("en")}>EN</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setLang("uz")}>UZ</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              onClick={handleLogout}
-              variant="outline"
-              className="h-9 px-4 text-sm rounded-lg"
-            >
-              {t("sign_out")}
-            </Button>
+            <ProfileMenu />
           </div>
         </div>
       </nav>

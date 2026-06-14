@@ -3,20 +3,59 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { createOrder, getOrdersByUserId, upsertUserProfile, getUserProfile } from "./db";
+import {
+  createOrder,
+  getOrdersByUserId,
+  upsertUserProfile,
+  getUserProfile,
+  ensureReferralCode,
+} from "./db";
 import { notifyOwner } from "./_core/notification";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query((opts) => opts.ctx.user),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+
+      ctx.res.clearCookie(COOKIE_NAME, {
+        ...cookieOptions,
+        maxAge: -1,
+      });
+
       return {
         success: true,
       } as const;
+    }),
+  }),
+
+  account: router({
+    get: publicProcedure.query(async ({ ctx }) => {
+      const user = ctx.user;
+
+      if (!user) {
+        return {
+          balance: 0,
+          referralCode: null as string | null,
+        };
+      }
+
+      const balance =
+        typeof (user as any).balance === "number" ? (user as any).balance : 0;
+
+      let referralCode: string | null = (user as any).referralCode ?? null;
+
+      if (!referralCode) {
+        referralCode = await ensureReferralCode(user.id);
+      }
+
+      return {
+        balance,
+        referralCode,
+      };
     }),
   }),
 
@@ -24,12 +63,15 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          location: z.string().refine((val) => {
-            const lower = val.toLowerCase();
-            return lower.includes("tashkent") || lower.includes("ташкент");
-          }, {
-            message: "Orders are only available in Tashkent",
-          }),
+          location: z.string().refine(
+            (val) => {
+              const lower = val.toLowerCase();
+              return lower.includes("tashkent") || lower.includes("ташкент");
+            },
+            {
+              message: "Orders are only available in Tashkent",
+            }
+          ),
           day: z.number().min(1).max(31),
           month: z.string().min(1),
           year: z.number().min(2000),
@@ -45,14 +87,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // Validate delivery address contains Tashkent reference
-        const tashkentKeywords = [
-          "tashkent",
-          "ташкент",
-          "узб",
-          "uzbek",
-        ];
+        const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
         const addressLower = input.deliveryAddress.toLowerCase();
+
         const isTashkentAddress = tashkentKeywords.some((keyword) =>
           addressLower.includes(keyword)
         );
@@ -81,14 +118,16 @@ export const appRouter = router({
           status: "pending",
         });
 
-        // Notify owner
         await notifyOwner({
           title: "New Order Received",
-          content: `New order from ${ctx.user.name || ctx.user.email}: ${input.mainTitle}. Delivery address: ${input.deliveryAddress}`,
+          content: `New order from ${
+            ctx.user.name || ctx.user.email
+          }: ${input.mainTitle}. Delivery address: ${input.deliveryAddress}`,
         });
 
         return order;
       }),
+
     list: protectedProcedure.query(async ({ ctx }) => {
       return await getOrdersByUserId(ctx.user.id);
     }),
@@ -98,27 +137,26 @@ export const appRouter = router({
     get: protectedProcedure.query(async ({ ctx }) => {
       return await getUserProfile(ctx.user.id);
     }),
+
     upsert: protectedProcedure
       .input(
         z.object({
-          location: z.string().refine((val) => {
-            const lower = val.toLowerCase();
-            return lower.includes("tashkent") || lower.includes("ташкент");
-          }, {
-            message: "Location must be Tashkent",
-          }),
+          location: z.string().refine(
+            (val) => {
+              const lower = val.toLowerCase();
+              return lower.includes("tashkent") || lower.includes("ташкент");
+            },
+            {
+              message: "Location must be Tashkent",
+            }
+          ),
           deliveryAddress: z.string().min(1, "Delivery address is required"),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // Validate delivery address contains Tashkent reference
-        const tashkentKeywords = [
-          "tashkent",
-          "ташкент",
-          "узб",
-          "uzbek",
-        ];
+        const tashkentKeywords = ["tashkent", "ташкент", "узб", "uzbek"];
         const addressLower = input.deliveryAddress.toLowerCase();
+
         const isTashkentAddress = tashkentKeywords.some((keyword) =>
           addressLower.includes(keyword)
         );

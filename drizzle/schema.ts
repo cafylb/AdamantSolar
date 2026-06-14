@@ -14,12 +14,21 @@ export const users = pgTable("users", {
    * Use this for relations between tables.
    */
   id: serial("id").primaryKey(),
+
   /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
+
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: roleEnum("role").default("user").notNull(),
+
+  /** Account balance in UZS. */
+  balance: integer("balance").default(0).notNull(),
+
+  /** Unique referral code used to build the user's invite link. */
+  referralCode: varchar("referralCode", { length: 32 }).unique(),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -34,7 +43,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const userProfiles = pgTable("userProfiles", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
-  location: varchar("location", { length: 255 }).notNull(), // Tashkent
+  location: varchar("location", { length: 255 }).notNull(),
   deliveryAddress: varchar("deliveryAddress", { length: 500 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -58,8 +67,8 @@ export const orders = pgTable("orders", {
   mainTitle: varchar("mainTitle", { length: 255 }).notNull(),
   line1: varchar("line1", { length: 255 }).notNull(),
   line2: varchar("line2", { length: 255 }).notNull(),
-  message: text("message"), // Optional
-  hideTime: integer("hideTime").default(0).notNull(), // 0 = false, 1 = true
+  message: text("message"),
+  hideTime: integer("hideTime").default(0).notNull(),
   deliveryAddress: varchar("deliveryAddress", { length: 500 }).notNull(),
   status: statusEnum("status").default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
