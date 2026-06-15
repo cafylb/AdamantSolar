@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 
 declare module "react" {
   namespace JSX {
@@ -141,6 +142,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
     contactNumber: "",
     hideTime: false,
     deliveryAddress: "",
+    productType: "small",
   });
   const [citySuggestions, setCitySuggestions] = useState<{
     display_name: string;
@@ -155,6 +157,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const ordersQuery = trpc.orders.list.useQuery();
   const createOrderMutation = trpc.orders.create.useMutation();
+  const utils = trpc.useUtils();
 
   const statusLabels = {
     pending: t("status_pending"),
@@ -290,8 +293,13 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
 
 
 
+  useEffect(() => {
+    if (!user && !bypassAuth) {
+      navigate(getLoginUrl());
+    }
+  }, [user, bypassAuth, navigate]);
+
   if (!user && !bypassAuth) {
-    navigate(getLoginUrl());
     return null;
   }
 
@@ -305,6 +313,19 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const PRODUCT_TYPES = [
+    { id: "small", labelKey: "size_small", price: 90000 },
+    { id: "medium", labelKey: "size_medium", price: 120000 },
+    { id: "large", labelKey: "size_large", price: 150000 },
+  ] as const;
+
+  const formatMoney = (value: number | string) => {
+    const number =
+      typeof value === "string" ? Number(value.replace(/\D/g, "")) : value;
+    if (!Number.isFinite(number)) return "0";
+    return Math.floor(number).toLocaleString("de-DE");
   };
 
   const handleNext = () => {
@@ -362,12 +383,13 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
         line2: formData.line2,
         message: formData.message || undefined,
         hideTime: formData.hideTime,
+        productType: formData.productType,
         deliveryAddress: formData.deliveryAddress,
         contactNumber: formData.contactNumber,
         referralName: localStorage.getItem("referralName") || undefined,
       });
 
-      toast.success("Order placed successfully!");
+      toast.success(t("order_placed_success"));
       
       // Reset form
       setFormData({
@@ -384,14 +406,22 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
         contactNumber: "",
         hideTime: false,
         deliveryAddress: "",
+        productType: "small",
       });
       setIsCitySelected(false);
       setFormStep("form");
       
-      // Refresh orders list
+      // Refresh orders list and balance
       ordersQuery.refetch();
+      utils.account.get.invalidate();
     } catch (error) {
-      toast.error("Failed to place order. Please try again.");
+      const message =
+        error instanceof Error ? error.message : String(error ?? "");
+      if (message.includes("INSUFFICIENT_BALANCE")) {
+        toast.error(t("insufficient_balance"));
+      } else {
+        toast.error(t("order_failed"));
+      }
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -463,9 +493,21 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
               <div className="space-y-8">
                 <div>
                   <div className="mb-12">
-                    <h2 className="text-3xl font-semibold text-foreground mb-2">
-                      {t("create_order")}
-                    </h2>
+                    <div className="flex items-center gap-3 mb-2">
+                      {formStep === "address" && (
+                        <button
+                          type="button"
+                          onClick={() => setFormStep("form")}
+                          aria-label={t("back")}
+                          className="flex shrink-0 items-center text-foreground transition-opacity hover:opacity-60"
+                        >
+                          <ArrowLeft className="h-7 w-7" />
+                        </button>
+                      )}
+                      <h2 className="text-3xl font-semibold text-foreground">
+                        {t("create_order")}
+                      </h2>
+                    </div>
                     <p className="text-subtle">
                       {formStep === "form"
                         ? t("step_order_details")
@@ -707,6 +749,42 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                         transition={{ duration: 0.3, type: "spring", stiffness: 300, damping: 25 }}
                         className="space-y-8 max-w-2xl"
                       >
+                        {/* Product Type */}
+                        <div>
+                          <Label className="label-minimal mb-2 block">
+                            {t("product_type")} *
+                          </Label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {PRODUCT_TYPES.map((product) => {
+                              const selected =
+                                formData.productType === product.id;
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  onClick={() =>
+                                    handleFormChange("productType", product.id)
+                                  }
+                                  className={`flex flex-col items-center gap-1 rounded-lg border px-3 py-3 text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97] ${
+                                    selected
+                                      ? "border-black bg-black text-white hover:bg-zinc-800"
+                                      : "border-border bg-background text-foreground hover:bg-accent"
+                                  }`}
+                                >
+                                  <span>{t(product.labelKey)}</span>
+                                  <span
+                                    className={`text-xs ${
+                                      selected ? "text-white/80" : "text-subtle"
+                                    }`}
+                                  >
+                                    {formatMoney(product.price)} {t("currency")}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
                         {/* Delivery Address */}
                         <div>
                           <Label className="label-minimal mb-2 block">
@@ -741,6 +819,27 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           </h3>
                           <div className="space-y-2 text-sm">
                             <p>
+                              <span className="text-subtle">{t("product_type")}:</span>{" "}
+                              <span className="font-medium">
+                                {t(
+                                  PRODUCT_TYPES.find(
+                                    (p) => p.id === formData.productType
+                                  )?.labelKey ?? "size_small"
+                                )}
+                              </span>
+                            </p>
+                            <p>
+                              <span className="text-subtle">{t("price_label")}:</span>{" "}
+                              <span className="font-medium">
+                                {formatMoney(
+                                  PRODUCT_TYPES.find(
+                                    (p) => p.id === formData.productType
+                                  )?.price ?? 0
+                                )}{" "}
+                                {t("currency")}
+                              </span>
+                            </p>
+                            <p>
                               <span className="text-subtle">{t("title_label")}:</span>{" "}
                               <span className="font-medium">{formData.mainTitle}</span>
                             </p>
@@ -762,17 +861,8 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           </div>
                         </div>
 
-                        {/* Action Buttons */}
+                        {/* Action Button */}
                         <div className="flex gap-3">
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                            <Button
-                              onClick={() => setFormStep("form")}
-                              variant="outline"
-                              className="w-full h-12 font-medium text-base rounded-lg"
-                            >
-                              {t("back")}
-                            </Button>
-                          </motion.div>
                           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
                             <Button
                               onClick={handleSubmit}
@@ -878,7 +968,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           {order.day} {getMonthLabel(order.month)} {order.year}
                         </p>
                       </div>
-                      {order.hideTime === 0 && (
+                      {!order.hideTime && (
                         <div>
                           <p className="text-xs text-subtle mb-1">{t("time_label")}</p>
                           <p className="text-sm font-medium text-foreground">
@@ -918,6 +1008,21 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                           </span>
                         </p>
                       )}
+                      <p>
+                        <span className="text-subtle">{t("product_type")}:</span>{" "}
+                        <span className="text-foreground">
+                          {t(
+                            PRODUCT_TYPES.find((p) => p.id === order.productType)
+                              ?.labelKey ?? "size_small"
+                          )}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-subtle">{t("price_label")}:</span>{" "}
+                        <span className="text-foreground">
+                          {formatMoney(order.price ?? 0)} {t("currency")}
+                        </span>
+                      </p>
                       <p>
                         <span className="text-subtle">{t("delivery_address")}:</span>{" "}
                         <span className="text-foreground">

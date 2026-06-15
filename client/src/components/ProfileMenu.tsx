@@ -16,8 +16,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -25,7 +23,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Copy, CreditCard, Globe, LogOut, User, Wallet } from "lucide-react";
+import {
+  Check,
+  Copy,
+  CreditCard,
+  Globe,
+  LogOut,
+  User,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
@@ -36,6 +42,32 @@ const LANGS: { value: Lang; label: string }[] = [
 ];
 
 const TOP_UP_AMOUNTS = ["50000", "100000", "150000"];
+
+const PAYMENT_METHODS: {
+  id: string;
+  name: string;
+  descKey: string;
+  logo: string;
+}[] = [
+  {
+    id: "click",
+    name: "Click",
+    descKey: "pm_click_desc",
+    logo: "/payments/click.png",
+  },
+  {
+    id: "uzum",
+    name: "Uzum Bank",
+    descKey: "pm_uzum_desc",
+    logo: "/payments/uzum.png",
+  },
+  {
+    id: "payme",
+    name: "Payme",
+    descKey: "pm_payme_desc",
+    logo: "/payments/payme.png",
+  },
+];
 
 const formatMoney = (value: number | string) => {
   const number = typeof value === "string" ? Number(value) : value;
@@ -52,6 +84,7 @@ export function ProfileMenu() {
   const { lang, setLang, t } = useLanguage();
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("50000");
+  const [paymentMethod, setPaymentMethod] = useState<string>("uzum");
 
   const u = user as any;
 
@@ -86,8 +119,12 @@ export function ProfileMenu() {
     setTopUpOpen(true);
   };
 
-  const handleUzumContinue = () => {
-    toast.info(t("top_up_soon"));
+  const handleContinuePayment = () => {
+    const method =
+      PAYMENT_METHODS.find((m) => m.id === paymentMethod) ?? PAYMENT_METHODS[0];
+
+    toast.success(`${t("redirecting_to")} ${method.name}`);
+    setTopUpOpen(false);
   };
 
   return (
@@ -160,20 +197,18 @@ export function ProfileMenu() {
             </DropdownMenuSubTrigger>
 
             <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup
-                value={lang}
-                onValueChange={(v) => setLang(v as Lang)}
-              >
-                {LANGS.map((l) => (
-                  <DropdownMenuRadioItem
-                    key={l.value}
-                    value={l.value}
-                    className="cursor-pointer"
-                  >
-                    {l.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
+              {LANGS.map((l) => (
+                <DropdownMenuItem
+                  key={l.value}
+                  onClick={() => setLang(l.value)}
+                  className="cursor-pointer justify-between gap-6"
+                >
+                  <span>{l.label}</span>
+                  {lang === l.value && (
+                    <Check className="h-4 w-4 text-primary" />
+                  )}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
@@ -192,20 +227,46 @@ export function ProfileMenu() {
       <Dialog open={topUpOpen} onOpenChange={setTopUpOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("top_up_via_uzum")}</DialogTitle>
-            <DialogDescription>{t("uzum_top_up_description")}</DialogDescription>
+            <DialogTitle>{t("top_up_title")}</DialogTitle>
+            <DialogDescription>{t("top_up_choose")}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-background">
-                  <CreditCard className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Uzum Bank</p>
-                  <p className="text-xs text-muted-foreground">{t("uzum_ready_for_payment")}</p>
-                </div>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t("payment_method")}
+              </label>
+              <div className="space-y-2">
+                {PAYMENT_METHODS.map((method) => {
+                  const selected = paymentMethod === method.id;
+
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(method.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all duration-200 active:scale-[0.99] ${
+                        selected
+                          ? "border-2 border-foreground"
+                          : "border border-border hover:border-foreground/30 hover:bg-accent"
+                      }`}
+                    >
+                      <img
+                        src={method.logo}
+                        alt={method.name}
+                        className="h-10 w-10 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {method.name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {t(method.descKey)}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -214,41 +275,30 @@ export function ProfileMenu() {
               <Input
                 inputMode="numeric"
                 value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) =>
+                  setTopUpAmount(e.target.value.replace(/\D/g, ""))
+                }
                 placeholder="50000"
               />
-            </div>
+              <div className="grid grid-cols-3 gap-2">
+                {TOP_UP_AMOUNTS.map((amount) => {
+                  const selected = topUpAmount === amount;
 
-            <div className="grid grid-cols-3 gap-2">
-              {TOP_UP_AMOUNTS.map((amount) => {
-                const selected = topUpAmount === amount;
-
-                return (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => setTopUpAmount(amount)}
-                    className={`min-h-9 rounded-md border px-2 py-2 text-xs font-medium transition-colors sm:text-sm ${
-                      selected
-                        ? "border-black bg-black text-white hover:bg-zinc-800"
-                        : "border-border bg-background text-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {formatMoney(amount)} {t("currency")}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Uzum Bank</p>
-                  <p className="text-xs text-muted-foreground">{t("uzum_payment_method")}</p>
-                </div>
-                <span className="rounded-md border border-black bg-black px-2 py-1 text-xs text-white">
-                  {t("selected")}
-                </span>
+                  return (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setTopUpAmount(amount)}
+                      className={`min-h-9 rounded-md border px-2 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                        selected
+                          ? "border-black bg-black text-white hover:bg-zinc-800"
+                          : "border-border bg-background text-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {formatMoney(amount)} {t("currency")}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -259,10 +309,9 @@ export function ProfileMenu() {
             </Button>
             <Button
               className="bg-black text-white hover:bg-zinc-800"
-              onClick={handleUzumContinue}
+              onClick={handleContinuePayment}
             >
-              <CreditCard className="mr-1 h-4 w-4 !text-white" />
-              {t("continue_to_uzum")}
+              {t("proceed_to_payment")}
             </Button>
           </DialogFooter>
         </DialogContent>

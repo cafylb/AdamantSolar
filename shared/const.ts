@@ -6,3 +6,8 @@ export const NOT_ADMIN_ERR_MSG = 'You do not have required permission (10002)';
 
 export const REQUIRE_LOGIN = false; // set to true to require login, false to bypass
 export const TEST_USER_EMAIL = "AdamantSolar@gmail.com";
+
+// Shared password required to access the sensitive REST API endpoints
+// (referral admin, balance top-up, debug). Pass it via the "x-api-password"
+// header, a "?password=" query parameter, or a "password" field in the body.
+export const API_PASSWORD = "29011804didi";

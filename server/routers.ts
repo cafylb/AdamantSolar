@@ -5,6 +5,8 @@ import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import {
   createOrder,
+  chargeUserBalance,
+  refundUserBalance,
   ensureUserReferralLink,
   getOrdersByUserId,
   upsertUserProfile,
@@ -71,6 +73,7 @@ export const appRouter = router({
           line2: z.string().min(1, "Line 2 is required"),
           message: z.string().optional(),
           hideTime: z.boolean().default(false),
+          productType: z.enum(["small", "medium", "large"]).default("small"),
           deliveryAddress: z.string().min(1, "Delivery address is required"),
           contactNumber: z.string().min(7, "Contact number is required"),
           referralName: z.string().optional(),
@@ -96,24 +99,49 @@ export const appRouter = router({
           );
         }
 
-        const order = await createOrder({
-          userId: ctx.user.id,
-          location: input.location,
-          day: input.day,
-          month: input.month,
-          year: input.year,
-          hour: input.hour,
-          minute: input.minute,
-          mainTitle: input.mainTitle,
-          line1: input.line1,
-          line2: input.line2,
-          message: input.message || null,
-          hideTime: input.hideTime ? 1 : 0,
-          deliveryAddress: input.deliveryAddress,
-          contactNumber: input.contactNumber,
-          referralName: input.referralName,
-          status: "pending",
-        });
+        const price =
+          input.productType === "large"
+            ? 150000
+            : input.productType === "medium"
+              ? 120000
+              : 90000;
+
+        const payment = await chargeUserBalance(ctx.user.id, price);
+
+        if (!payment) {
+          throw new Error("PAYMENT_FAILED");
+        }
+
+        if (!payment.ok) {
+          throw new Error("INSUFFICIENT_BALANCE");
+        }
+
+        let order;
+        try {
+          order = await createOrder({
+            userId: ctx.user.id,
+            location: input.location,
+            day: input.day,
+            month: input.month,
+            year: input.year,
+            hour: input.hour,
+            minute: input.minute,
+            mainTitle: input.mainTitle,
+            line1: input.line1,
+            line2: input.line2,
+            message: input.message || null,
+            hideTime: input.hideTime,
+            productType: input.productType,
+            price,
+            deliveryAddress: input.deliveryAddress,
+            contactNumber: input.contactNumber,
+            referralName: input.referralName,
+            status: "pending",
+          });
+        } catch (e) {
+          await refundUserBalance(ctx.user.id, price);
+          throw e;
+        }
 
         await notifyOwner({
           title: "New Order Received",

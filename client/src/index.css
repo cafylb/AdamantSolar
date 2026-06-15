@@ -304,3 +304,109 @@ html.transition-backward site-without-navbar {
         translate: -100vw;
     }
 }
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Smooth transitions for all interactive elements site-wide */
+  @media (prefers-reduced-motion: no-preference) {
+    a[href],
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]) {
+      transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        opacity 0.2s ease,
+        transform 0.2s ease;
+    }
+  }
+
+  /* Respect users who prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  @keyframes anim-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes anim-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes anim-scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .anim-fade-in {
+    animation: anim-fade-in 0.5s ease both;
+  }
+
+  .anim-fade-up {
+    animation: anim-fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .anim-scale-in {
+    animation: anim-scale-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .anim-delay-1 {
+    animation-delay: 0.06s;
+  }
+  .anim-delay-2 {
+    animation-delay: 0.12s;
+  }
+  .anim-delay-3 {
+    animation-delay: 0.18s;
+  }
+  .anim-delay-4 {
+    animation-delay: 0.24s;
+  }
+  .anim-delay-5 {
+    animation-delay: 0.3s;
+  }
+
+  /* Gentle lift on hover for cards and tiles */
+  .hover-lift {
+    transition:
+      transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.25s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.08);
+  }
+}

@@ -70,6 +70,8 @@ function mapOrderRow(r: any) {
     hideTime: r.hidetime ?? r.hideTime ?? false,
     deliveryAddress: r.deliveryaddress ?? r.deliveryAddress ?? null,
     referralName: r.referralname ?? r.referralName ?? null,
+    productType: r.producttype ?? r.productType ?? "small",
+    price: r.price ?? 0,
     status: r.status ?? null,
     createdAt: r.createdat ?? r.createdAt ?? null,
     updatedAt: r.updatedat ?? r.updatedAt ?? null,
@@ -169,6 +171,9 @@ async function ensureSchema() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS referralName VARCHAR(320);
 
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS referralName VARCHAR(320);
+
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS productType VARCHAR(16) NOT NULL DEFAULT 'small';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
 
     ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS type VARCHAR(32) NOT NULL DEFAULT 'marketing';
     ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS title VARCHAR(320);
@@ -552,6 +557,68 @@ export async function recordUserTopUp(userId: number, amount: number) {
   }
 }
 
+export async function chargeUserBalance(userId: number, amount: number) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const charge = Math.max(0, Math.floor(Number(amount || 0)));
+
+  if (charge <= 0) {
+    return { ok: true, balance: 0, charged: 0 };
+  }
+
+  try {
+    const res = await p.query(
+      `UPDATE users SET balance = balance - $2, updatedAt = now() WHERE id = $1 AND balance >= $2 RETURNING balance`,
+      [userId, charge]
+    );
+
+    if (res.rows.length === 0) {
+      const current = await p.query(
+        `SELECT balance FROM users WHERE id = $1 LIMIT 1`,
+        [userId]
+      );
+
+      return {
+        ok: false,
+        balance: Number(current.rows[0]?.balance ?? 0),
+        charged: 0,
+      };
+    }
+
+    return {
+      ok: true,
+      balance: Number(res.rows[0]?.balance ?? 0),
+      charged: charge,
+    };
+  } catch (e) {
+    console.warn("[Database] chargeUserBalance failed:", e);
+    return null;
+  }
+}
+
+export async function refundUserBalance(userId: number, amount: number) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  const refund = Math.max(0, Math.floor(Number(amount || 0)));
+  if (refund <= 0) return null;
+
+  try {
+    await p.query(
+      `UPDATE users SET balance = balance + $2, updatedAt = now() WHERE id = $1`,
+      [userId, refund]
+    );
+
+    return true;
+  } catch (e) {
+    console.warn("[Database] refundUserBalance failed:", e);
+    return null;
+  }
+}
+
 export async function clearReferralTopUp(name: string) {
   const p = ensurePool();
   if (!p) return null;
@@ -661,9 +728,11 @@ export async function createOrder(data: any) {
         hideTime,
         deliveryAddress,
         referralName,
-        status
+        status,
+        productType,
+        price
       )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [
         data.userId,
@@ -682,6 +751,8 @@ export async function createOrder(data: any) {
         data.deliveryAddress,
         storedReferralName,
         data.status ?? "pending",
+        data.productType ?? "small",
+        data.price ?? 0,
       ]
     );
 

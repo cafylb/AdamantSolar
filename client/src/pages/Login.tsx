@@ -11,7 +11,7 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/dashboard");
+      navigate("/buy");
     }
   }, [isAuthenticated, navigate]);
 
@@ -28,8 +28,8 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-12">
+      <div className="w-full max-w-md anim-fade-in">
+        <div className="text-center mb-12 anim-fade-up">
           <h1 className="text-4xl font-semibold text-foreground mb-4">
             {t("title")}
           </h1>
@@ -41,21 +41,21 @@ export default function Login() {
 
         <div className="space-y-4">
           <Button
-            className="w-full h-12 bg-foreground text-white hover:bg-foreground/90 font-medium text-base rounded-lg shadow-subtle transition-all"
+            className="w-full h-12 bg-foreground text-white hover:bg-foreground/90 font-medium text-base rounded-lg shadow-subtle transition-all anim-fade-up anim-delay-2"
             onClick={() => handleOAuthSignIn("google")}
           >
             Continue with Google
           </Button>
 
           <Button
-            className="w-full h-12 border border-border text-foreground bg-transparent hover:bg-slate-100 font-medium text-base rounded-lg shadow-subtle transition-all"
+            className="w-full h-12 border border-border text-foreground bg-transparent hover:bg-slate-100 font-medium text-base rounded-lg shadow-subtle transition-all anim-fade-up anim-delay-3"
             onClick={() => handleOAuthSignIn("apple")}
           >
             Continue with Apple
           </Button>
         </div>
 
-        <p className="text-center text-subtle text-xs mt-8">
+        <p className="text-center text-subtle text-xs mt-8 anim-fade-in anim-delay-4">
           {t("terms_notice")}
         </p>
       </div>

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import type { NextFunction, Request, Response } from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -11,10 +12,12 @@ import {
   getOverallRefInfo,
   getPool,
   getReferralInfo,
+  getUserByOpenId,
   recordReferralClick,
   recordUserTopUp,
   setReferralLink,
 } from "../db";
+import { API_PASSWORD, REQUIRE_LOGIN, TEST_USER_EMAIL } from "@shared/const";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -47,7 +50,31 @@ async function startServer() {
 
   registerAuthRoutes(app);
 
-  app.get("/api/debug/orders", async (req, res) => {
+  // Shared-password gate for the sensitive REST endpoints. The password can be
+  // provided via the "x-api-password" header, a "?password=" query parameter,
+  // or a "password" field in the request body.
+  const requireApiPassword = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const headerValue = req.headers["x-api-password"];
+    const provided =
+      (typeof req.query.password === "string" && req.query.password) ||
+      (typeof headerValue === "string" && headerValue) ||
+      (req.body && typeof req.body.password === "string" && req.body.password) ||
+      "";
+
+    if (provided !== API_PASSWORD) {
+      return res
+        .status(401)
+        .json({ error: "invalid or missing API password" });
+    }
+
+    return next();
+  };
+
+  app.get("/api/debug/orders", requireApiPassword, async (req, res) => {
     try {
       const user = await sdk.authenticateRequest(req);
       const p = await getPool();
@@ -74,12 +101,12 @@ async function startServer() {
     }
   });
 
-  app.get("/api/ref/get", async (_req, res) => {
+  app.get("/api/ref/get", requireApiPassword, async (_req, res) => {
     const info = await getOverallRefInfo();
     res.json(info);
   });
 
-  app.get("/api/ref/get/:name", async (req, res) => {
+  app.get("/api/ref/get/:name", requireApiPassword, async (req, res) => {
     const info = await getReferralInfo(req.params.name);
 
     if (!info) {
@@ -89,7 +116,7 @@ async function startServer() {
     res.json(info);
   });
 
-  app.get("/api/ref/clear/:name", async (req, res) => {
+  app.get("/api/ref/clear/:name", requireApiPassword, async (req, res) => {
     const info = await clearReferralTopUp(req.params.name);
 
     if (!info) {
@@ -99,7 +126,7 @@ async function startServer() {
     res.json(info);
   });
 
-  app.get("/api/ref/set/:name", async (req, res) => {
+  app.get("/api/ref/set/:name", requireApiPassword, async (req, res) => {
     const name = String(req.params.name || "").trim();
 
     if (!/^[a-zA-Z0-9@._+-]{1,320}$/.test(name)) {
@@ -128,21 +155,40 @@ async function startServer() {
     });
   });
 
-  app.get("/api/balance/topup/:amount", async (req, res) => {
-    try {
-      const user = await sdk.authenticateRequest(req);
-      const amount = Number(req.params.amount || 0);
-      const result = await recordUserTopUp(user.id, amount);
+  app.get(
+    "/api/balance/topup/:amount",
+    requireApiPassword,
+    async (req, res) => {
+      try {
+        let user: any = null;
 
-      if (!result) {
-        return res.status(400).json({ error: "invalid top up amount" });
+        try {
+          user = await sdk.authenticateRequest(req);
+        } catch {
+          user = null;
+        }
+
+        if (!user && !REQUIRE_LOGIN) {
+          user = await getUserByOpenId(`test-user-${TEST_USER_EMAIL}`);
+        }
+
+        if (!user) {
+          return res.status(401).json({ error: "unauthenticated" });
+        }
+
+        const amount = Number(req.params.amount || 0);
+        const result = await recordUserTopUp(user.id, amount);
+
+        if (!result) {
+          return res.status(400).json({ error: "invalid top up amount" });
+        }
+
+        res.json({ ok: true, userId: user.id, ...result });
+      } catch (err) {
+        res.status(500).json({ error: "top up failed" });
       }
-
-      res.json(result);
-    } catch (err) {
-      res.status(401).json({ error: "unauthenticated" });
     }
-  });
+  );
 
   registerOAuthRoutes(app);
 
