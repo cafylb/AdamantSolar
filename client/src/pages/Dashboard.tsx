@@ -83,6 +83,9 @@ const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  creating: "bg-blue-50 text-blue-700 border border-blue-200",
+  delivering: "bg-purple-50 text-purple-700 border border-purple-200",
+  delivered: "bg-green-50 text-green-700 border border-green-200",
   processing: "bg-blue-50 text-blue-700 border border-blue-200",
   completed: "bg-green-50 text-green-700 border border-green-200",
   cancelled: "bg-red-50 text-red-700 border border-red-200",
@@ -143,6 +146,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
     hideTime: false,
     deliveryAddress: "",
     productType: "small",
+    theme: "black",
   });
   const [citySuggestions, setCitySuggestions] = useState<{
     display_name: string;
@@ -161,6 +165,9 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
 
   const statusLabels = {
     pending: t("status_pending"),
+    creating: t("status_creating"),
+    delivering: t("status_delivering"),
+    delivered: t("status_delivered"),
     processing: t("status_processing"),
     completed: t("status_completed"),
     cancelled: t("status_cancelled"),
@@ -384,6 +391,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
         message: formData.message || undefined,
         hideTime: formData.hideTime,
         productType: formData.productType,
+        theme: formData.theme,
         deliveryAddress: formData.deliveryAddress,
         contactNumber: formData.contactNumber,
         referralName: localStorage.getItem("referralName") || undefined,
@@ -407,6 +415,7 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
         hideTime: false,
         deliveryAddress: "",
         productType: "small",
+        theme: "black",
       });
       setIsCitySelected(false);
       setFormStep("form");
@@ -749,6 +758,43 @@ export default function Dashboard({ bypassAuth = false }: DashboardProps) {
                         transition={{ duration: 0.3, type: "spring", stiffness: 300, damping: 25 }}
                         className="space-y-8 max-w-2xl"
                       >
+                        {/* Poster Theme */}
+                        <div>
+                          <Label className="label-minimal mb-2 block">
+                            {t("theme_label")} *
+                          </Label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {[
+                              { id: "black", swatch: "#0a0a0a" },
+                              { id: "ivory", swatch: "#efe9dc" },
+                              { id: "navy", swatch: "#141d33" },
+                              { id: "pink", swatch: "#f6bdd5" },
+                            ].map((themeOpt) => {
+                              const selected = formData.theme === themeOpt.id;
+                              return (
+                                <button
+                                  key={themeOpt.id}
+                                  type="button"
+                                  onClick={() =>
+                                    handleFormChange("theme", themeOpt.id)
+                                  }
+                                  className={`flex flex-col items-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97] ${
+                                    selected
+                                      ? "border-black bg-black text-white hover:bg-zinc-800"
+                                      : "border-border bg-background text-foreground hover:bg-accent"
+                                  }`}
+                                >
+                                  <span
+                                    className="h-6 w-6 rounded-full border border-black/10 shadow-subtle"
+                                    style={ { backgroundColor: themeOpt.swatch } } 
+                                  />
+                                  <span>{t(`theme_${themeOpt.id}`)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
                         {/* Product Type */}
                         <div>
                           <Label className="label-minimal mb-2 block">

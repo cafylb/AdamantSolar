@@ -71,6 +71,7 @@ function mapOrderRow(r: any) {
     deliveryAddress: r.deliveryaddress ?? r.deliveryAddress ?? null,
     referralName: r.referralname ?? r.referralName ?? null,
     productType: r.producttype ?? r.productType ?? "small",
+    theme: r.theme ?? "black",
     price: r.price ?? 0,
     status: r.status ?? null,
     createdAt: r.createdat ?? r.createdAt ?? null,
@@ -174,6 +175,7 @@ async function ensureSchema() {
 
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS productType VARCHAR(16) NOT NULL DEFAULT 'small';
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS theme VARCHAR(16) NOT NULL DEFAULT 'black';
 
     ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS type VARCHAR(32) NOT NULL DEFAULT 'marketing';
     ALTER TABLE referralLinks ADD COLUMN IF NOT EXISTS title VARCHAR(320);
@@ -730,9 +732,10 @@ export async function createOrder(data: any) {
         referralName,
         status,
         productType,
-        price
+        price,
+        theme
       )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         data.userId,
@@ -753,6 +756,7 @@ export async function createOrder(data: any) {
         data.status ?? "pending",
         data.productType ?? "small",
         data.price ?? 0,
+        data.theme ?? "black",
       ]
     );
 
@@ -763,6 +767,23 @@ export async function createOrder(data: any) {
     return mapOrderRow(res.rows[0]) ?? null;
   } catch (e) {
     console.error("[Database] createOrder failed:", e);
+    throw e;
+  }
+}
+
+export async function updateOrderStatus(orderId: number, status: string) {
+  const p = ensurePool();
+  if (!p) return null;
+  await ensureSchema();
+
+  try {
+    const res = await p.query(
+      `UPDATE orders SET status = $1, updatedAt = now() WHERE id = $2 RETURNING *`,
+      [status, orderId]
+    );
+    return mapOrderRow(res.rows[0]) ?? null;
+  } catch (e) {
+    console.error("[Database] updateOrderStatus failed:", e);
     throw e;
   }
 }

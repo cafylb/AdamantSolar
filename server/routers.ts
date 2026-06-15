@@ -11,8 +11,10 @@ import {
   getOrdersByUserId,
   upsertUserProfile,
   getUserProfile,
+  updateOrderStatus,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
+import { sendStarmapForOrder } from "./adamant";
 
 export const appRouter = router({
   system: systemRouter,
@@ -74,6 +76,7 @@ export const appRouter = router({
           message: z.string().optional(),
           hideTime: z.boolean().default(false),
           productType: z.enum(["small", "medium", "large"]).default("small"),
+          theme: z.enum(["black", "ivory", "navy", "pink"]).default("black"),
           deliveryAddress: z.string().min(1, "Delivery address is required"),
           contactNumber: z.string().min(7, "Contact number is required"),
           referralName: z.string().optional(),
@@ -132,6 +135,7 @@ export const appRouter = router({
             message: input.message || null,
             hideTime: input.hideTime,
             productType: input.productType,
+            theme: input.theme,
             price,
             deliveryAddress: input.deliveryAddress,
             contactNumber: input.contactNumber,
@@ -147,6 +151,26 @@ export const appRouter = router({
           title: "New Order Received",
           content: `New order from ${ctx.user.name || ctx.user.email}: ${input.mainTitle}. Delivery address: ${input.deliveryAddress}`,
         });
+
+        // Fire-and-forget: render + deliver the star map via Adamant Solar Server.
+        // Flow: pending -> creating (on dispatch) -> delivering (Adamant ok).
+        // "delivered" stays manual via the /api/:orderid/3 endpoint.
+        if (order && (order as any).id != null) {
+          const orderId = (order as any).id;
+          void (async () => {
+            try {
+              await updateOrderStatus(orderId, "creating");
+              const ok = await sendStarmapForOrder(order);
+              await updateOrderStatus(orderId, ok ? "delivering" : "pending");
+            } catch (err) {
+              console.error(
+                "[adamant] background dispatch failed for order",
+                orderId,
+                err
+              );
+            }
+          })();
+        }
 
         return order;
       }),

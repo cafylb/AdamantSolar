@@ -16,6 +16,7 @@ import {
   recordReferralClick,
   recordUserTopUp,
   setReferralLink,
+  updateOrderStatus,
 } from "../db";
 import { API_PASSWORD, REQUIRE_LOGIN, TEST_USER_EMAIL } from "@shared/const";
 import { appRouter } from "../routers";
@@ -186,6 +187,42 @@ async function startServer() {
         res.json({ ok: true, userId: user.id, ...result });
       } catch (err) {
         res.status(500).json({ error: "top up failed" });
+      }
+    }
+  );
+
+  // Update an order's status by its numeric id.
+  // status code: 0 -> pending, 1 -> creating, 2 -> delivering, 3 -> delivered
+  const ORDER_STATUS_BY_CODE: Record<string, string> = {
+    "0": "pending",
+    "1": "creating",
+    "2": "delivering",
+    "3": "delivered",
+  };
+
+  app.all(
+    "/api/:orderid(\\d+)/:status(\\d+)",
+    requireApiPassword,
+    async (req: Request, res: Response) => {
+      try {
+        const newStatus = ORDER_STATUS_BY_CODE[String(req.params.status)];
+        if (!newStatus) {
+          return res.status(400).json({
+            error:
+              "invalid status (use 0=pending, 1=creating, 2=delivering, 3=delivered)",
+          });
+        }
+
+        const orderId = Number(req.params.orderid);
+        const updated = await updateOrderStatus(orderId, newStatus);
+
+        if (!updated) {
+          return res.status(404).json({ error: "order not found" });
+        }
+
+        res.json({ ok: true, orderId, status: newStatus, order: updated });
+      } catch (err) {
+        res.status(500).json({ error: "failed to update order status" });
       }
     }
   );
